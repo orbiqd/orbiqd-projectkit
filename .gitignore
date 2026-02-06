@@ -1,0 +1,10 @@
+.DS_Store
+
+bin/
+.claude
+.ai
+CLAUDE.md
+AGENTS.md
+GEMINI.md
+.idea
+coverage*.out

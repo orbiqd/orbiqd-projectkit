@@ -1,0 +1,8 @@
+agents:
+  - kind: codex
+    options:
+      instructionsFileName: AGENTS_test.md
+ai:
+  instruction:
+    sources:
+      - uri: local://./rulebooks/general/ai/instructions
