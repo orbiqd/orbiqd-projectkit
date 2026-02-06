@@ -165,6 +165,8 @@ func (loader *ConfigLoader) merge(configs ...projectAPI.Config) projectAPI.Confi
 	}
 
 	for _, cfg := range configs {
+		result.Agents = append(result.Agents, cfg.Agents...)
+
 		if cfg.Rulebook != nil {
 			result.Rulebook.Sources = append(result.Rulebook.Sources, cfg.Rulebook.Sources...)
 		}

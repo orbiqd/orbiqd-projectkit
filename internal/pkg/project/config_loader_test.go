@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	agentAPI "github.com/orbiqd/orbiqd-projectkit/pkg/agent"
 	"github.com/orbiqd/orbiqd-projectkit/pkg/ai"
 	"github.com/orbiqd/orbiqd-projectkit/pkg/ai/instruction"
 	"github.com/orbiqd/orbiqd-projectkit/pkg/ai/workflow"
@@ -377,6 +378,7 @@ func TestConfigLoader_merge(t *testing.T) {
 	tests := []struct {
 		name            string
 		configs         []projectAPI.Config
+		wantAgents      []agentAPI.Config
 		wantRulebook    []projectAPI.RulebookSourceConfig
 		wantInstruction []instruction.SourceConfig
 		wantWorkflows   []workflow.SourceConfig
@@ -578,6 +580,90 @@ func TestConfigLoader_merge(t *testing.T) {
 			wantInstruction: []instruction.SourceConfig{{URI: "file://B"}},
 			wantWorkflows:   nil,
 		},
+		{
+			name: "WhenOneConfigWithOnlyAgents_ThenReturnsAgents",
+			configs: []projectAPI.Config{
+				{
+					Agents: []agentAPI.Config{
+						{Kind: "claude"},
+						{Kind: "cursor"},
+					},
+				},
+			},
+			wantAgents:      []agentAPI.Config{{Kind: "claude"}, {Kind: "cursor"}},
+			wantRulebook:    nil,
+			wantInstruction: nil,
+			wantWorkflows:   nil,
+		},
+		{
+			name: "WhenTwoConfigsWithAgents_ThenMergesAgentsInOrder",
+			configs: []projectAPI.Config{
+				{
+					Agents: []agentAPI.Config{
+						{Kind: "claude"},
+					},
+				},
+				{
+					Agents: []agentAPI.Config{
+						{Kind: "cursor"},
+					},
+				},
+			},
+			wantAgents:      []agentAPI.Config{{Kind: "claude"}, {Kind: "cursor"}},
+			wantRulebook:    nil,
+			wantInstruction: nil,
+			wantWorkflows:   nil,
+		},
+		{
+			name: "WhenConfigWithNilAgents_ThenDoesNotCrash",
+			configs: []projectAPI.Config{
+				{Agents: nil},
+			},
+			wantAgents:      nil,
+			wantRulebook:    nil,
+			wantInstruction: nil,
+			wantWorkflows:   nil,
+		},
+		{
+			name: "WhenAgentsHaveOptions_ThenOptionsArePreserved",
+			configs: []projectAPI.Config{
+				{
+					Agents: []agentAPI.Config{
+						{Kind: "claude", Options: map[string]any{"model": "sonnet"}},
+					},
+				},
+			},
+			wantAgents:      []agentAPI.Config{{Kind: "claude", Options: map[string]any{"model": "sonnet"}}},
+			wantRulebook:    nil,
+			wantInstruction: nil,
+			wantWorkflows:   nil,
+		},
+		{
+			name: "WhenAgentsMixedWithOtherFields_ThenMergesEachFieldIndependently",
+			configs: []projectAPI.Config{
+				{
+					Agents: []agentAPI.Config{{Kind: "claude"}},
+					Rulebook: &projectAPI.RulebookConfig{
+						Sources: []projectAPI.RulebookSourceConfig{{URI: "file://A"}},
+					},
+					AI: &ai.Config{
+						Instruction: &instruction.Config{
+							Sources: []instruction.SourceConfig{{URI: "file://B"}},
+						},
+					},
+				},
+				{
+					Agents: []agentAPI.Config{{Kind: "cursor"}},
+					Rulebook: &projectAPI.RulebookConfig{
+						Sources: []projectAPI.RulebookSourceConfig{{URI: "file://C"}},
+					},
+				},
+			},
+			wantAgents:      []agentAPI.Config{{Kind: "claude"}, {Kind: "cursor"}},
+			wantRulebook:    []projectAPI.RulebookSourceConfig{{URI: "file://A"}, {URI: "file://C"}},
+			wantInstruction: []instruction.SourceConfig{{URI: "file://B"}},
+			wantWorkflows:   nil,
+		},
 	}
 
 	for _, tt := range tests {
@@ -597,6 +683,7 @@ func TestConfigLoader_merge(t *testing.T) {
 			require.NotNil(t, result.AI.Skill)
 			require.NotNil(t, result.AI.Workflows)
 
+			assert.Equal(t, tt.wantAgents, result.Agents)
 			assert.Equal(t, tt.wantRulebook, result.Rulebook.Sources)
 			assert.Equal(t, tt.wantInstruction, result.AI.Instruction.Sources)
 			assert.Equal(t, tt.wantWorkflows, result.AI.Workflows.Sources)
