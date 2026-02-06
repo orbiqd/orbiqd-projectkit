@@ -1,0 +1,22 @@
+agents:
+  - kind: claude-code
+  - kind: codex
+  - kind: gemini
+rulebooks:
+  sources:
+    - uri: local://rulebooks/general
+ai:
+  workflow:
+    sources:
+      - uri: local://examples/ai/workflows
+  skill:
+    sources:
+      - uri: local://examples/ai/git
+      - uri: local://examples/ai/github
+  instruction:
+    sources:
+      - uri: local://examples/ai/instructions
+docs:
+  standard:
+    sources:
+      - uri: local://examples/docs/standards

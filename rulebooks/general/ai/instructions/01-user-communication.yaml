@@ -1,0 +1,5 @@
+category: user-communication
+rules:
+  - Communicate with the user in the language they use to initiate the conversation.
+  - Ask clarifying questions when uncertain about user intent.
+  - Propose a few solutions instead of asking the user.
