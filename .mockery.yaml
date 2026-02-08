@@ -9,9 +9,6 @@ pkgname: "{{.SrcPackageName}}"
 recursive: false
 template: testify
 packages:
-  github.com/orbiqd/orbiqd-projectkit/pkg/ai/skill:
-    interfaces:
-      Service:
   github.com/orbiqd/orbiqd-projectkit/pkg/agent:
     interfaces:
       Agent:
@@ -23,5 +20,8 @@ packages:
       DriverRepository:
       Resolver:
   github.com/orbiqd/orbiqd-projectkit/pkg/ai/instruction:
+    interfaces:
+      Repository:
+  github.com/orbiqd/orbiqd-projectkit/pkg/ai/skill:
     interfaces:
       Repository:
