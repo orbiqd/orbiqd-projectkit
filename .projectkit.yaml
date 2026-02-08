@@ -2,6 +2,9 @@ agents:
   - kind: codex
     options:
       instructionsFileName: AGENTS_test.md
+  - kind: claude
+    options:
+      instructionsFileName: AGENTS_claude.md
 ai:
   instruction:
     sources:

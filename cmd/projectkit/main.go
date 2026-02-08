@@ -9,13 +9,16 @@ import (
 	"github.com/alecthomas/kong"
 	"github.com/orbiqd/orbiqd-projectkit/internal/app/projectkit"
 	"github.com/orbiqd/orbiqd-projectkit/internal/pkg/agent"
+	"github.com/orbiqd/orbiqd-projectkit/internal/pkg/agent/claude"
 	"github.com/orbiqd/orbiqd-projectkit/internal/pkg/agent/codex"
 	"github.com/orbiqd/orbiqd-projectkit/internal/pkg/ai/instruction"
+	"github.com/orbiqd/orbiqd-projectkit/internal/pkg/ai/skill"
 	"github.com/orbiqd/orbiqd-projectkit/internal/pkg/log"
 	_ "github.com/orbiqd/orbiqd-projectkit/internal/pkg/project"
 	"github.com/orbiqd/orbiqd-projectkit/internal/pkg/source"
 	agentAPI "github.com/orbiqd/orbiqd-projectkit/pkg/agent"
 	instructionAPI "github.com/orbiqd/orbiqd-projectkit/pkg/ai/instruction"
+	skillAPI "github.com/orbiqd/orbiqd-projectkit/pkg/ai/skill"
 	projectAPI "github.com/orbiqd/orbiqd-projectkit/pkg/project"
 	sourceAPI "github.com/orbiqd/orbiqd-projectkit/pkg/source"
 	"github.com/spf13/afero"
@@ -81,7 +84,14 @@ func main() {
 	if err != nil {
 		runtime.Fatalf("register agent provider: %v", err)
 	}
+	err = agentRegistry.Register(claude.NewProvider(projectRootFs))
+	if err != nil {
+		runtime.Fatalf("register agent provider: %v", err)
+	}
 	runtime.BindTo(agentRegistry, (*agentAPI.Registry)(nil))
+
+	skillRepository := skill.NewMemoryRepository()
+	runtime.BindTo(skillRepository, (*skillAPI.Repository)(nil))
 
 	err = runtime.Run()
 	if err != nil {
