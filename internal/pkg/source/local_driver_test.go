@@ -4,12 +4,12 @@ import (
 	"errors"
 	"os"
 	"testing"
-	"time"
 
 	sourceAPI "github.com/orbiqd/orbiqd-projectkit/pkg/source"
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.nhat.io/aferomock"
 )
 
 func TestLocalDriver_Resolve(t *testing.T) {
@@ -110,7 +110,12 @@ func TestLocalDriver_Resolve(t *testing.T) {
 func TestLocalDriver_Resolve_WhenStatError_ThenReturnsError(t *testing.T) {
 	t.Parallel()
 
-	errFs := &errorFs{err: errors.New("permission denied")}
+	baseFs := afero.NewMemMapFs()
+	errFs := aferomock.OverrideFs(baseFs, aferomock.FsCallbacks{
+		StatFunc: func(name string) (os.FileInfo, error) {
+			return nil, errors.New("permission denied")
+		},
+	})
 	driver := NewLocalDriver(WithRootFs(errFs))
 
 	result, err := driver.Resolve("local://somepath")
@@ -129,29 +134,4 @@ func TestLocalDriver_GetSupportedSchemes(t *testing.T) {
 	schemes := driver.GetSupportedSchemes()
 
 	assert.Equal(t, []string{"local"}, schemes)
-}
-
-type errorFs struct {
-	afero.Fs
-	err error
-}
-
-func (e *errorFs) Stat(name string) (os.FileInfo, error) {
-	return nil, e.err
-}
-
-func (e *errorFs) Name() string {
-	return "errorFs"
-}
-
-func (e *errorFs) Chmod(name string, mode os.FileMode) error {
-	return e.err
-}
-
-func (e *errorFs) Chown(name string, uid, gid int) error {
-	return e.err
-}
-
-func (e *errorFs) Chtimes(name string, atime time.Time, mtime time.Time) error {
-	return e.err
 }

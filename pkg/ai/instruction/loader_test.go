@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.nhat.io/aferomock"
 )
 
 func TestLoader_Load(t *testing.T) {
@@ -113,14 +114,6 @@ rules:
 	}
 }
 
-type errorFs struct {
-	afero.Fs
-}
-
-func (e *errorFs) Open(name string) (afero.File, error) {
-	return nil, errors.New("simulated fs error")
-}
-
 func TestLoader_resolveFiles(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -175,7 +168,11 @@ func TestLoader_resolveFiles(t *testing.T) {
 		},
 		{
 			name:       "read directory error",
-			customFs:   &errorFs{afero.NewMemMapFs()},
+			customFs: aferomock.OverrideFs(afero.NewMemMapFs(), aferomock.FsCallbacks{
+				OpenFunc: func(name string) (afero.File, error) {
+					return nil, errors.New("simulated fs error")
+				},
+			}),
 			wantLen:    0,
 			errContain: "read directory",
 		},
