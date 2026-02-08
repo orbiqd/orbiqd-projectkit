@@ -162,3 +162,44 @@ func TestAgent_RenderInstructions_WhenCustomFileName_ThenWritesToCustomFile(t *t
 	require.NoError(t, err)
 	assert.False(t, exists)
 }
+
+func TestAgent_GitIgnorePatterns_ThenReturnsInstructionsFileName(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name                 string
+		instructionsFileName string
+		expectedPattern      string
+	}{
+		{
+			name:                 "default file name",
+			instructionsFileName: "",
+			expectedPattern:      "AGENTS.md",
+		},
+		{
+			name:                 "custom file name",
+			instructionsFileName: "custom-instructions.md",
+			expectedPattern:      "custom-instructions.md",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			fs := afero.NewMemMapFs()
+
+			var agent *Agent
+			if tt.instructionsFileName == "" {
+				agent = NewAgent(Options{}, fs)
+			} else {
+				agent = NewAgent(Options{InstructionsFileName: tt.instructionsFileName}, fs)
+			}
+
+			patterns := agent.GitIgnorePatterns()
+
+			require.Len(t, patterns, 1)
+			assert.Equal(t, tt.expectedPattern, patterns[0])
+		})
+	}
+}

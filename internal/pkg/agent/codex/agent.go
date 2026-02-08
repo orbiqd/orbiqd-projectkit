@@ -58,3 +58,9 @@ func (agent *Agent) RenderInstructions(instructions []instructionAPI.Instruction
 
 	return nil
 }
+
+func (agent *Agent) GitIgnorePatterns() []string {
+	return []string{
+		agent.options.InstructionsFileName,
+	}
+}

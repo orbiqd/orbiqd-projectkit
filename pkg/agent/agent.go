@@ -6,4 +6,6 @@ type Kind string
 
 type Agent interface {
 	RenderInstructions(instructions []instructionAPI.Instructions) error
+
+	GitIgnorePatterns() []string
 }
