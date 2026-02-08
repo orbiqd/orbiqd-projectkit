@@ -1,1 +1,2 @@
-ignore: []
+ignore:
+  - "**/*_mock.go"
