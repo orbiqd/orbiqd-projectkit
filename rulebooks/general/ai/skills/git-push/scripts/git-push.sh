@@ -56,11 +56,11 @@ push() {
   fi
 
   if has_upstream; then
-    git push "${args[@]}" "$remote" "$branch"
+    git push ${args[@]+"${args[@]}"} "$remote" "$branch"
     return
   fi
 
-  git push --set-upstream "${args[@]}" "$remote" "$branch"
+  git push --set-upstream ${args[@]+"${args[@]}"} "$remote" "$branch"
 }
 
 main() {
