@@ -175,6 +175,9 @@ func (loader *ConfigLoader) merge(configs ...projectAPI.Config) projectAPI.Confi
 			if cfg.AI.Instruction != nil {
 				result.AI.Instruction.Sources = append(result.AI.Instruction.Sources, cfg.AI.Instruction.Sources...)
 			}
+			if cfg.AI.Skill != nil {
+				result.AI.Skill.Sources = append(result.AI.Skill.Sources, cfg.AI.Skill.Sources...)
+			}
 			if cfg.AI.Workflows != nil {
 				result.AI.Workflows.Sources = append(result.AI.Workflows.Sources, cfg.AI.Workflows.Sources...)
 			}

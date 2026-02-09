@@ -6,6 +6,7 @@ package agent
 
 import (
 	"github.com/orbiqd/orbiqd-projectkit/pkg/ai/instruction"
+	"github.com/orbiqd/orbiqd-projectkit/pkg/ai/skill"
 	mock "github.com/stretchr/testify/mock"
 )
 
@@ -34,6 +35,50 @@ type MockAgent_Expecter struct {
 
 func (_m *MockAgent) EXPECT() *MockAgent_Expecter {
 	return &MockAgent_Expecter{mock: &_m.Mock}
+}
+
+// GetKind provides a mock function for the type MockAgent
+func (_mock *MockAgent) GetKind() Kind {
+	ret := _mock.Called()
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetKind")
+	}
+
+	var r0 Kind
+	if returnFunc, ok := ret.Get(0).(func() Kind); ok {
+		r0 = returnFunc()
+	} else {
+		r0 = ret.Get(0).(Kind)
+	}
+	return r0
+}
+
+// MockAgent_GetKind_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetKind'
+type MockAgent_GetKind_Call struct {
+	*mock.Call
+}
+
+// GetKind is a helper method to define mock.On call
+func (_e *MockAgent_Expecter) GetKind() *MockAgent_GetKind_Call {
+	return &MockAgent_GetKind_Call{Call: _e.mock.On("GetKind")}
+}
+
+func (_c *MockAgent_GetKind_Call) Run(run func()) *MockAgent_GetKind_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *MockAgent_GetKind_Call) Return(kind Kind) *MockAgent_GetKind_Call {
+	_c.Call.Return(kind)
+	return _c
+}
+
+func (_c *MockAgent_GetKind_Call) RunAndReturn(run func() Kind) *MockAgent_GetKind_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // GitIgnorePatterns provides a mock function for the type MockAgent
@@ -78,6 +123,57 @@ func (_c *MockAgent_GitIgnorePatterns_Call) Return(strings []string) *MockAgent_
 }
 
 func (_c *MockAgent_GitIgnorePatterns_Call) RunAndReturn(run func() []string) *MockAgent_GitIgnorePatterns_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// RebuildSkills provides a mock function for the type MockAgent
+func (_mock *MockAgent) RebuildSkills(skillRepository skill.Repository) error {
+	ret := _mock.Called(skillRepository)
+
+	if len(ret) == 0 {
+		panic("no return value specified for RebuildSkills")
+	}
+
+	var r0 error
+	if returnFunc, ok := ret.Get(0).(func(skill.Repository) error); ok {
+		r0 = returnFunc(skillRepository)
+	} else {
+		r0 = ret.Error(0)
+	}
+	return r0
+}
+
+// MockAgent_RebuildSkills_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'RebuildSkills'
+type MockAgent_RebuildSkills_Call struct {
+	*mock.Call
+}
+
+// RebuildSkills is a helper method to define mock.On call
+//   - skillRepository skill.Repository
+func (_e *MockAgent_Expecter) RebuildSkills(skillRepository interface{}) *MockAgent_RebuildSkills_Call {
+	return &MockAgent_RebuildSkills_Call{Call: _e.mock.On("RebuildSkills", skillRepository)}
+}
+
+func (_c *MockAgent_RebuildSkills_Call) Run(run func(skillRepository skill.Repository)) *MockAgent_RebuildSkills_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 skill.Repository
+		if args[0] != nil {
+			arg0 = args[0].(skill.Repository)
+		}
+		run(
+			arg0,
+		)
+	})
+	return _c
+}
+
+func (_c *MockAgent_RebuildSkills_Call) Return(err error) *MockAgent_RebuildSkills_Call {
+	_c.Call.Return(err)
+	return _c
+}
+
+func (_c *MockAgent_RebuildSkills_Call) RunAndReturn(run func(skillRepository skill.Repository) error) *MockAgent_RebuildSkills_Call {
 	_c.Call.Return(run)
 	return _c
 }

@@ -8,6 +8,7 @@ import (
 	agentAPI "github.com/orbiqd/orbiqd-projectkit/pkg/agent"
 	"github.com/orbiqd/orbiqd-projectkit/pkg/ai"
 	"github.com/orbiqd/orbiqd-projectkit/pkg/ai/instruction"
+	skillAPI "github.com/orbiqd/orbiqd-projectkit/pkg/ai/skill"
 	"github.com/orbiqd/orbiqd-projectkit/pkg/ai/workflow"
 	projectAPI "github.com/orbiqd/orbiqd-projectkit/pkg/project"
 	"github.com/spf13/afero"
@@ -381,6 +382,7 @@ func TestConfigLoader_merge(t *testing.T) {
 		wantAgents      []agentAPI.Config
 		wantRulebook    []projectAPI.RulebookSourceConfig
 		wantInstruction []instruction.SourceConfig
+		wantSkill       []skillAPI.SourceConfig
 		wantWorkflows   []workflow.SourceConfig
 	}{
 		{
@@ -388,6 +390,7 @@ func TestConfigLoader_merge(t *testing.T) {
 			configs:         []projectAPI.Config{},
 			wantRulebook:    nil,
 			wantInstruction: nil,
+			wantSkill:       nil,
 			wantWorkflows:   nil,
 		},
 		{
@@ -404,6 +407,7 @@ func TestConfigLoader_merge(t *testing.T) {
 			},
 			wantRulebook:    []projectAPI.RulebookSourceConfig{{URI: "file://A"}, {URI: "file://B"}},
 			wantInstruction: nil,
+			wantSkill:       nil,
 			wantWorkflows:   nil,
 		},
 		{
@@ -419,6 +423,23 @@ func TestConfigLoader_merge(t *testing.T) {
 			},
 			wantRulebook:    nil,
 			wantInstruction: []instruction.SourceConfig{{URI: "file://A"}},
+			wantSkill:       nil,
+			wantWorkflows:   nil,
+		},
+		{
+			name: "WhenOneConfigWithOnlyAISkill_ThenReturnsSkillSources",
+			configs: []projectAPI.Config{
+				{
+					AI: &ai.Config{
+						Skill: &skillAPI.Config{
+							Sources: []skillAPI.SourceConfig{{URI: "file://A"}},
+						},
+					},
+				},
+			},
+			wantRulebook:    nil,
+			wantInstruction: nil,
+			wantSkill:       []skillAPI.SourceConfig{{URI: "file://A"}},
 			wantWorkflows:   nil,
 		},
 		{
@@ -434,6 +455,7 @@ func TestConfigLoader_merge(t *testing.T) {
 			},
 			wantRulebook:    nil,
 			wantInstruction: nil,
+			wantSkill:       nil,
 			wantWorkflows:   []workflow.SourceConfig{{URI: "file://A"}},
 		},
 		{
@@ -452,6 +474,7 @@ func TestConfigLoader_merge(t *testing.T) {
 			},
 			wantRulebook:    []projectAPI.RulebookSourceConfig{{URI: "file://A"}, {URI: "file://B"}, {URI: "file://C"}, {URI: "file://D"}},
 			wantInstruction: nil,
+			wantSkill:       nil,
 			wantWorkflows:   nil,
 		},
 		{
@@ -474,6 +497,30 @@ func TestConfigLoader_merge(t *testing.T) {
 			},
 			wantRulebook:    nil,
 			wantInstruction: []instruction.SourceConfig{{URI: "file://A"}, {URI: "file://B"}},
+			wantSkill:       nil,
+			wantWorkflows:   nil,
+		},
+		{
+			name: "WhenTwoConfigsWithAISkill_ThenMergesSourcesInOrder",
+			configs: []projectAPI.Config{
+				{
+					AI: &ai.Config{
+						Skill: &skillAPI.Config{
+							Sources: []skillAPI.SourceConfig{{URI: "file://A"}},
+						},
+					},
+				},
+				{
+					AI: &ai.Config{
+						Skill: &skillAPI.Config{
+							Sources: []skillAPI.SourceConfig{{URI: "file://B"}},
+						},
+					},
+				},
+			},
+			wantRulebook:    nil,
+			wantInstruction: nil,
+			wantSkill:       []skillAPI.SourceConfig{{URI: "file://A"}, {URI: "file://B"}},
 			wantWorkflows:   nil,
 		},
 		{
@@ -496,6 +543,7 @@ func TestConfigLoader_merge(t *testing.T) {
 			},
 			wantRulebook:    nil,
 			wantInstruction: nil,
+			wantSkill:       nil,
 			wantWorkflows:   []workflow.SourceConfig{{URI: "file://A"}, {URI: "file://B"}},
 		},
 		{
@@ -505,6 +553,7 @@ func TestConfigLoader_merge(t *testing.T) {
 			},
 			wantRulebook:    nil,
 			wantInstruction: nil,
+			wantSkill:       nil,
 			wantWorkflows:   nil,
 		},
 		{
@@ -514,6 +563,7 @@ func TestConfigLoader_merge(t *testing.T) {
 			},
 			wantRulebook:    nil,
 			wantInstruction: nil,
+			wantSkill:       nil,
 			wantWorkflows:   nil,
 		},
 		{
@@ -523,6 +573,17 @@ func TestConfigLoader_merge(t *testing.T) {
 			},
 			wantRulebook:    nil,
 			wantInstruction: nil,
+			wantSkill:       nil,
+			wantWorkflows:   nil,
+		},
+		{
+			name: "WhenConfigWithAIButNilSkill_ThenDoesNotCrash",
+			configs: []projectAPI.Config{
+				{AI: &ai.Config{Skill: nil}},
+			},
+			wantRulebook:    nil,
+			wantInstruction: nil,
+			wantSkill:       nil,
 			wantWorkflows:   nil,
 		},
 		{
@@ -532,6 +593,7 @@ func TestConfigLoader_merge(t *testing.T) {
 			},
 			wantRulebook:    nil,
 			wantInstruction: nil,
+			wantSkill:       nil,
 			wantWorkflows:   nil,
 		},
 		{
@@ -555,6 +617,7 @@ func TestConfigLoader_merge(t *testing.T) {
 			},
 			wantRulebook:    []projectAPI.RulebookSourceConfig{{URI: "file://A"}, {URI: "file://B"}, {URI: "file://C"}},
 			wantInstruction: nil,
+			wantSkill:       nil,
 			wantWorkflows:   nil,
 		},
 		{
@@ -568,6 +631,9 @@ func TestConfigLoader_merge(t *testing.T) {
 						Instruction: &instruction.Config{
 							Sources: []instruction.SourceConfig{{URI: "file://B"}},
 						},
+						Skill: &skillAPI.Config{
+							Sources: []skillAPI.SourceConfig{{URI: "file://C"}},
+						},
 					},
 				},
 				{
@@ -578,6 +644,7 @@ func TestConfigLoader_merge(t *testing.T) {
 			},
 			wantRulebook:    []projectAPI.RulebookSourceConfig{{URI: "file://A"}, {URI: "file://C"}},
 			wantInstruction: []instruction.SourceConfig{{URI: "file://B"}},
+			wantSkill:       []skillAPI.SourceConfig{{URI: "file://C"}},
 			wantWorkflows:   nil,
 		},
 		{
@@ -593,6 +660,7 @@ func TestConfigLoader_merge(t *testing.T) {
 			wantAgents:      []agentAPI.Config{{Kind: "claude"}, {Kind: "cursor"}},
 			wantRulebook:    nil,
 			wantInstruction: nil,
+			wantSkill:       nil,
 			wantWorkflows:   nil,
 		},
 		{
@@ -612,6 +680,7 @@ func TestConfigLoader_merge(t *testing.T) {
 			wantAgents:      []agentAPI.Config{{Kind: "claude"}, {Kind: "cursor"}},
 			wantRulebook:    nil,
 			wantInstruction: nil,
+			wantSkill:       nil,
 			wantWorkflows:   nil,
 		},
 		{
@@ -622,6 +691,7 @@ func TestConfigLoader_merge(t *testing.T) {
 			wantAgents:      nil,
 			wantRulebook:    nil,
 			wantInstruction: nil,
+			wantSkill:       nil,
 			wantWorkflows:   nil,
 		},
 		{
@@ -636,6 +706,7 @@ func TestConfigLoader_merge(t *testing.T) {
 			wantAgents:      []agentAPI.Config{{Kind: "claude", Options: map[string]any{"model": "sonnet"}}},
 			wantRulebook:    nil,
 			wantInstruction: nil,
+			wantSkill:       nil,
 			wantWorkflows:   nil,
 		},
 		{
@@ -650,6 +721,9 @@ func TestConfigLoader_merge(t *testing.T) {
 						Instruction: &instruction.Config{
 							Sources: []instruction.SourceConfig{{URI: "file://B"}},
 						},
+						Skill: &skillAPI.Config{
+							Sources: []skillAPI.SourceConfig{{URI: "file://D"}},
+						},
 					},
 				},
 				{
@@ -662,6 +736,7 @@ func TestConfigLoader_merge(t *testing.T) {
 			wantAgents:      []agentAPI.Config{{Kind: "claude"}, {Kind: "cursor"}},
 			wantRulebook:    []projectAPI.RulebookSourceConfig{{URI: "file://A"}, {URI: "file://C"}},
 			wantInstruction: []instruction.SourceConfig{{URI: "file://B"}},
+			wantSkill:       []skillAPI.SourceConfig{{URI: "file://D"}},
 			wantWorkflows:   nil,
 		},
 	}
@@ -686,6 +761,7 @@ func TestConfigLoader_merge(t *testing.T) {
 			assert.Equal(t, tt.wantAgents, result.Agents)
 			assert.Equal(t, tt.wantRulebook, result.Rulebook.Sources)
 			assert.Equal(t, tt.wantInstruction, result.AI.Instruction.Sources)
+			assert.Equal(t, tt.wantSkill, result.AI.Skill.Sources)
 			assert.Equal(t, tt.wantWorkflows, result.AI.Workflows.Sources)
 		})
 	}

@@ -4,7 +4,7 @@ ai:
       - uri: local://examples/ai/workflows
   skills:
     sources:
-      - uri: local://examples/ai/git
+      - uri: local://examples/ai/git-commit
       - uri: local://examples/ai/github
   instructions:
     sources:

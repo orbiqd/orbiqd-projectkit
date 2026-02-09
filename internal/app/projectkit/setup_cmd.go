@@ -3,9 +3,7 @@ package projectkit
 import (
 	"fmt"
 	"log/slog"
-	"maps"
 	"os"
-	"slices"
 
 	"github.com/orbiqd/orbiqd-projectkit/internal/pkg/git"
 	"github.com/orbiqd/orbiqd-projectkit/internal/pkg/project"
@@ -52,125 +50,111 @@ func (cmd *SetupCmd) Run(
 	}
 	slog.Debug("Configuration loaded.")
 
-	for _, instructionSourceConfig := range config.AI.Instruction.Sources {
-		instructionsUri := instructionSourceConfig.URI
-		instructionSource, err := sourceResolver.Resolve(instructionsUri)
+	var instructions []instructionAPI.Instructions
+	if config.AI.Instruction != nil {
+		instructionsSet, err := cmd.loadInstructionsFromConfig(*config.AI.Instruction, sourceResolver)
 		if err != nil {
-			return fmt.Errorf("resolve: %s: %w", instructionsUri, err)
+			return fmt.Errorf("load instructions from config: %w", err)
 		}
 
-		instructionLoader := instructionAPI.NewLoader(instructionSource)
-		instructionsSet, err := instructionLoader.Load()
-		if err != nil {
-			return fmt.Errorf("load instructions: %w", err)
-		}
-
-		for _, instructions := range instructionsSet {
-			err = instructionRepository.AddInstructions(instructions)
-			if err != nil {
-				return fmt.Errorf("add instructions: %w", err)
-			}
-
-			slog.Debug("AI Instructions added to repository.",
-				slog.String("sourceUri", instructionsUri),
-				slog.String("instructionsCategory", string(instructions.Category)),
-				slog.Int("rulesCount", len(instructions.Rules)),
-			)
-		}
+		instructions = append(instructions, instructionsSet...)
 	}
+	slog.Info("AI instructions loaded.", slog.Int("instructionsCount", len(instructions)))
 
-	for _, skillConfig := range config.AI.Skill.Sources {
-		skillsUri := skillConfig.URI
-		skillsSource, err := sourceResolver.Resolve(skillConfig.URI)
+	var skills []skillAPI.Skill
+	if config.AI.Skill != nil {
+		skillsSet, err := cmd.loadSkillsFromConfig(*config.AI.Skill, sourceResolver)
 		if err != nil {
-			return fmt.Errorf("resolve: %s: %w", skillsUri, err)
+			return fmt.Errorf("load skills from config: %w", err)
 		}
 
-		skillLoader := skillAPI.NewLoader(skillsSource)
+		skills = append(skills, skillsSet...)
+	}
+	slog.Info("AI skills loaded.", slog.Int("skillsCount", len(skills)))
 
-		skills, err := skillLoader.Load()
+	for _, instructionsItem := range instructions {
+		err = instructionRepository.AddInstructions(instructionsItem)
 		if err != nil {
-			return fmt.Errorf("load skills: %w", err)
+			return fmt.Errorf("add instructions to repository: %w", err)
 		}
 
-		for _, skill := range skills {
-			err = skillRepository.AddSkill(skill)
-			if err != nil {
-				return fmt.Errorf("add skill: %w", err)
-			}
-
-			slog.Debug("AI Skill added to repository.",
-				slog.String("sourceUri", skillsUri),
-				slog.String("skillName", string(skill.Metadata.Name)),
-			)
-		}
-
-		slog.Debug("AI Skills added to repository.",
-			slog.String("sourceUri", skillsUri),
-			slog.Int("skillsCount", len(skills)),
+		slog.Debug("AI Instructions added to repository.",
+			slog.String("instructionsCategory", string(instructionsItem.Category)),
+			slog.Int("rulesCount", len(instructionsItem.Rules)),
 		)
 	}
 
-	if len(config.Agents) == 0 {
+	for _, skill := range skills {
+		err = skillRepository.AddSkill(skill)
+		if err != nil {
+			return fmt.Errorf("add skill: %w", err)
+		}
+
+		slog.Debug("AI Skill added to repository.",
+			slog.String("skillName", string(skill.Metadata.Name)),
+		)
+	}
+
+	agents, err := cmd.loadAgentsFromConfig(*config, agentRegistry)
+	if err != nil {
+		return fmt.Errorf("load agents: %w", err)
+	}
+
+	if len(agents) == 0 {
 		slog.Warn("No agents configured.")
 		return nil
 	}
 
-	agents := make(map[agentAPI.Kind]agentAPI.Agent)
-
-	for _, agentConfig := range config.Agents {
-		agentKind := agentConfig.Kind
-		slog.Debug("Configuring agent.", slog.String("agentKind", string(agentKind)))
-
-		provider, err := agentRegistry.GetByKind(agentKind)
+	for _, agent := range agents {
+		err = cmd.setupAgent(projectFs, currentDir, agent, skillRepository, instructionRepository)
 		if err != nil {
-			return fmt.Errorf("get provider: %s: %w", agentKind, err)
+			return fmt.Errorf("setup agent: %w", err)
 		}
-
-		agent, err := provider.NewAgent(agentConfig.Options)
-		if err != nil {
-			return fmt.Errorf("create agent: %s: %w", agentKind, err)
-		}
-
-		agents[agentKind] = agent
 	}
 
-	for agentKind, agent := range agents {
-		instructions, err := instructionRepository.GetAll()
-		if err != nil {
-			return fmt.Errorf("get all instructions: %s: %w", agentKind, err)
-		}
-
-		err = agent.RenderInstructions(instructions)
-		if err != nil {
-			return fmt.Errorf("render instructions: %s: %w", agentKind, err)
-		}
-		slog.Debug("Instructions rendered.", slog.String("agentKind", string(agentKind)))
-
-		slog.Info("Agent configured.", slog.String("agentKind", string(agentKind)))
-	}
-
-	err = cmd.setupGit(projectFs, currentDir, slices.Collect(maps.Values(agents)))
-	if err != nil {
-		return fmt.Errorf("setup git: %w", err)
-	}
+	slog.Info("All agents configured.", slog.Int("agentsCount", len(agents)))
 
 	return nil
 }
 
-func (cmd *SetupCmd) setupGit(projectFs afero.Fs, currentDir string, agents []agentAPI.Agent) error {
+func (cmd *SetupCmd) setupAgent(projectFs afero.Fs, currentDir string, agent agentAPI.Agent, skillsRepository skillAPI.Repository, instructionRepository instructionAPI.Repository) error {
+	agentKind := agent.GetKind()
+	logger := slog.Default().With(slog.String("agentKind", string(agent.GetKind())))
+
+	logger.Debug("Setting up agent.")
+
+	instructions, err := instructionRepository.GetAll()
+	if err != nil {
+		return fmt.Errorf("get all instructions: %w", err)
+	}
+
+	err = agent.RenderInstructions(instructions)
+	if err != nil {
+		return fmt.Errorf("render instructions: %w", err)
+	}
+
+	err = agent.RebuildSkills(skillsRepository)
+	if err != nil {
+		return fmt.Errorf("rebuild skills: %w", err)
+	}
+
+	err = cmd.setupAgentGit(projectFs, currentDir, agent)
+	if err != nil {
+		return fmt.Errorf("git setup: %w", err)
+	}
+
+	slog.Info("Agent set up finished.", slog.String("agentKind", string(agentKind)))
+
+	return nil
+}
+
+func (cmd *SetupCmd) setupAgentGit(projectFs afero.Fs, currentDir string, agent agentAPI.Agent) error {
 	gitFs, err := git.CreateGitFs(projectFs, currentDir)
 	if err != nil {
-		return fmt.Errorf("create git fs: %w", err)
+		return fmt.Errorf("git fs creation: %w", err)
 	}
 
-	var patterns []string
-
-	for _, agent := range agents {
-		patterns = append(patterns, agent.GitIgnorePatterns()...)
-	}
-
-	for _, pattern := range patterns {
+	for _, pattern := range agent.GitIgnorePatterns() {
 		isExcluded, err := git.IsExcluded(gitFs, pattern)
 		if err != nil {
 			return fmt.Errorf("check excluded pattern %s: %w", pattern, err)
@@ -185,8 +169,85 @@ func (cmd *SetupCmd) setupGit(projectFs afero.Fs, currentDir string, agents []ag
 			return fmt.Errorf("exclude pattern %s: %w", pattern, err)
 		}
 
-		slog.Debug("Added GIT excluding pattern.", slog.String("pattern", pattern))
+		slog.Debug("Added GIT excluding pattern.",
+			slog.String("pattern", pattern),
+			slog.String("agentKind", string(agent.GetKind())),
+		)
 	}
 
 	return nil
+}
+
+func (cmd *SetupCmd) loadAgentsFromConfig(config projectAPI.Config, agentRegistry agentAPI.Registry) ([]agentAPI.Agent, error) {
+	var agents []agentAPI.Agent
+
+	for _, agentConfig := range config.Agents {
+		agentKind := agentConfig.Kind
+
+		provider, err := agentRegistry.GetByKind(agentKind)
+		if err != nil {
+			return []agentAPI.Agent{}, fmt.Errorf("get provider: %s: %w", agentKind, err)
+		}
+
+		agent, err := provider.NewAgent(agentConfig.Options)
+		if err != nil {
+			return []agentAPI.Agent{}, fmt.Errorf("create agent: %s: %w", agentKind, err)
+		}
+
+		agents = append(agents, agent)
+
+		slog.Info("Found agent in config.", slog.String("agentKind", string(agent.GetKind())))
+	}
+
+	return agents, nil
+}
+
+func (cmd *SetupCmd) loadSkillsFromConfig(config skillAPI.Config, sourceResolver sourceAPI.Resolver) ([]skillAPI.Skill, error) {
+	var skills []skillAPI.Skill
+
+	for _, skillConfig := range config.Sources {
+		skillsUri := skillConfig.URI
+		skillsSource, err := sourceResolver.Resolve(skillConfig.URI)
+		if err != nil {
+			return []skillAPI.Skill{}, fmt.Errorf("resolve: %s: %w", skillsUri, err)
+		}
+
+		skillLoader := skillAPI.NewLoader(skillsSource)
+
+		skillsSet, err := skillLoader.Load()
+		if err != nil {
+			return []skillAPI.Skill{}, fmt.Errorf("load skills: %w", err)
+		}
+
+		slog.Debug("Loaded skills from config.",
+			slog.String("sourceUri", skillsUri),
+			slog.Int("skillsCount", len(skillsSet)),
+		)
+
+		skills = append(skills, skillsSet...)
+	}
+
+	return skills, nil
+}
+
+func (cmd *SetupCmd) loadInstructionsFromConfig(config instructionAPI.Config, sourceResolver sourceAPI.Resolver) ([]instructionAPI.Instructions, error) {
+	var instructions []instructionAPI.Instructions
+
+	for _, instructionSourceConfig := range config.Sources {
+		instructionsUri := instructionSourceConfig.URI
+		instructionSource, err := sourceResolver.Resolve(instructionsUri)
+		if err != nil {
+			return []instructionAPI.Instructions{}, fmt.Errorf("resolve: %s: %w", instructionsUri, err)
+		}
+
+		instructionLoader := instructionAPI.NewLoader(instructionSource)
+		instructionsSet, err := instructionLoader.Load()
+		if err != nil {
+			return []instructionAPI.Instructions{}, fmt.Errorf("load instructions: %w", err)
+		}
+
+		instructions = append(instructions, instructionsSet...)
+	}
+
+	return instructions, nil
 }

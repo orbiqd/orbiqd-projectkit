@@ -1,6 +1,7 @@
 package skill
 
 import (
+	"sort"
 	"sync"
 
 	skillAPI "github.com/orbiqd/orbiqd-projectkit/pkg/ai/skill"
@@ -43,4 +44,24 @@ func (repository *MemoryRepository) AddSkill(skill skillAPI.Skill) error {
 	repository.skills[skill.Metadata.Name] = skill
 
 	return nil
+}
+
+func (repository *MemoryRepository) GetAll() ([]skillAPI.Skill, error) {
+	repository.mutex.RLock()
+	defer repository.mutex.RUnlock()
+
+	if len(repository.skills) == 0 {
+		return []skillAPI.Skill{}, nil
+	}
+
+	skills := make([]skillAPI.Skill, 0, len(repository.skills))
+	for _, skill := range repository.skills {
+		skills = append(skills, skill)
+	}
+
+	sort.Slice(skills, func(i, j int) bool {
+		return skills[i].Metadata.Name < skills[j].Metadata.Name
+	})
+
+	return skills, nil
 }

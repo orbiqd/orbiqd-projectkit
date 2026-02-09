@@ -147,3 +147,117 @@ func TestMemoryRepository_GetSkillByName(t *testing.T) {
 		})
 	}
 }
+
+func TestMemoryRepository_GetAll_WhenEmpty_ThenReturnsEmptySlice(t *testing.T) {
+	t.Parallel()
+
+	repo := NewMemoryRepository()
+
+	skills, err := repo.GetAll()
+	require.NoError(t, err)
+	require.NotNil(t, skills)
+	assert.Empty(t, skills)
+}
+
+func TestMemoryRepository_GetAll_WhenSingleSkill_ThenReturnsSkill(t *testing.T) {
+	t.Parallel()
+
+	repo := NewMemoryRepository()
+	skill := skillAPI.Skill{
+		Metadata: skillAPI.Metadata{
+			Name:        "test-skill",
+			Description: "Test description",
+		},
+		Instructions: "Test instructions",
+	}
+
+	err := repo.AddSkill(skill)
+	require.NoError(t, err)
+
+	skills, err := repo.GetAll()
+	require.NoError(t, err)
+	require.Len(t, skills, 1)
+	assert.Equal(t, skill.Metadata.Name, skills[0].Metadata.Name)
+	assert.Equal(t, skill.Metadata.Description, skills[0].Metadata.Description)
+}
+
+func TestMemoryRepository_GetAll_WhenMultipleSkills_ThenReturnsSortedByName(t *testing.T) {
+	t.Parallel()
+
+	repo := NewMemoryRepository()
+
+	skill1 := skillAPI.Skill{
+		Metadata: skillAPI.Metadata{
+			Name:        "zebra-skill",
+			Description: "Last alphabetically",
+		},
+		Instructions: "Instructions 1",
+	}
+
+	skill2 := skillAPI.Skill{
+		Metadata: skillAPI.Metadata{
+			Name:        "alpha-skill",
+			Description: "First alphabetically",
+		},
+		Instructions: "Instructions 2",
+	}
+
+	skill3 := skillAPI.Skill{
+		Metadata: skillAPI.Metadata{
+			Name:        "middle-skill",
+			Description: "Middle alphabetically",
+		},
+		Instructions: "Instructions 3",
+	}
+
+	err := repo.AddSkill(skill1)
+	require.NoError(t, err)
+	err = repo.AddSkill(skill2)
+	require.NoError(t, err)
+	err = repo.AddSkill(skill3)
+	require.NoError(t, err)
+
+	skills, err := repo.GetAll()
+	require.NoError(t, err)
+	require.Len(t, skills, 3)
+
+	assert.Equal(t, skillAPI.Name("alpha-skill"), skills[0].Metadata.Name)
+	assert.Equal(t, skillAPI.Name("middle-skill"), skills[1].Metadata.Name)
+	assert.Equal(t, skillAPI.Name("zebra-skill"), skills[2].Metadata.Name)
+}
+
+func TestMemoryRepository_GetAll_WhenSkillsWithScripts_ThenReturnsAllData(t *testing.T) {
+	t.Parallel()
+
+	repo := NewMemoryRepository()
+	skill := skillAPI.Skill{
+		Metadata: skillAPI.Metadata{
+			Name:        "skill-with-scripts",
+			Description: "Skill description",
+		},
+		Instructions: "Skill instructions",
+		Scripts: map[skillAPI.ScriptName]skillAPI.Script{
+			"script1.sh": {
+				ContentType: "application/x-sh",
+				Content:     []byte("#!/bin/bash\necho test"),
+			},
+			"script2.py": {
+				ContentType: "text/x-python",
+				Content:     []byte("print('test')"),
+			},
+		},
+	}
+
+	err := repo.AddSkill(skill)
+	require.NoError(t, err)
+
+	skills, err := repo.GetAll()
+	require.NoError(t, err)
+	require.Len(t, skills, 1)
+
+	result := skills[0]
+	assert.Equal(t, skill.Metadata.Name, result.Metadata.Name)
+	require.Len(t, result.Scripts, 2)
+	assert.Contains(t, result.Scripts, skillAPI.ScriptName("script1.sh"))
+	assert.Contains(t, result.Scripts, skillAPI.ScriptName("script2.py"))
+}

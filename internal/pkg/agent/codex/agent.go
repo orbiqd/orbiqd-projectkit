@@ -8,6 +8,7 @@ import (
 	"github.com/iancoleman/strcase"
 	agentAPI "github.com/orbiqd/orbiqd-projectkit/pkg/agent"
 	instructionAPI "github.com/orbiqd/orbiqd-projectkit/pkg/ai/instruction"
+	skillAPI "github.com/orbiqd/orbiqd-projectkit/pkg/ai/skill"
 	"github.com/spf13/afero"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
@@ -59,8 +60,16 @@ func (agent *Agent) RenderInstructions(instructions []instructionAPI.Instruction
 	return nil
 }
 
+func (agent *Agent) RebuildSkills(skillRepository skillAPI.Repository) error {
+	return nil
+}
+
 func (agent *Agent) GitIgnorePatterns() []string {
 	return []string{
 		agent.options.InstructionsFileName,
 	}
+}
+
+func (agent *Agent) GetKind() agentAPI.Kind {
+	return Kind
 }

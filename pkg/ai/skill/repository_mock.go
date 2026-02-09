@@ -86,6 +86,61 @@ func (_c *MockRepository_AddSkill_Call) RunAndReturn(run func(skill Skill) error
 	return _c
 }
 
+// GetAll provides a mock function for the type MockRepository
+func (_mock *MockRepository) GetAll() ([]Skill, error) {
+	ret := _mock.Called()
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetAll")
+	}
+
+	var r0 []Skill
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func() ([]Skill, error)); ok {
+		return returnFunc()
+	}
+	if returnFunc, ok := ret.Get(0).(func() []Skill); ok {
+		r0 = returnFunc()
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]Skill)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func() error); ok {
+		r1 = returnFunc()
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// MockRepository_GetAll_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetAll'
+type MockRepository_GetAll_Call struct {
+	*mock.Call
+}
+
+// GetAll is a helper method to define mock.On call
+func (_e *MockRepository_Expecter) GetAll() *MockRepository_GetAll_Call {
+	return &MockRepository_GetAll_Call{Call: _e.mock.On("GetAll")}
+}
+
+func (_c *MockRepository_GetAll_Call) Run(run func()) *MockRepository_GetAll_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *MockRepository_GetAll_Call) Return(skills []Skill, err error) *MockRepository_GetAll_Call {
+	_c.Call.Return(skills, err)
+	return _c
+}
+
+func (_c *MockRepository_GetAll_Call) RunAndReturn(run func() ([]Skill, error)) *MockRepository_GetAll_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetSkillByName provides a mock function for the type MockRepository
 func (_mock *MockRepository) GetSkillByName(name Name) (*Skill, error) {
 	ret := _mock.Called(name)

@@ -9,3 +9,6 @@ ai:
   instruction:
     sources:
       - uri: local://./rulebooks/general/ai/instructions
+  skill:
+    sources:
+      - uri: local://./rulebooks/general/ai/skills

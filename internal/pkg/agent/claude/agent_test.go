@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	instructionAPI "github.com/orbiqd/orbiqd-projectkit/pkg/ai/instruction"
+	skillAPI "github.com/orbiqd/orbiqd-projectkit/pkg/ai/skill"
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -169,17 +170,17 @@ func TestAgent_GitIgnorePatterns_ThenReturnsInstructionsFileName(t *testing.T) {
 	tests := []struct {
 		name                 string
 		instructionsFileName string
-		expectedPattern      string
+		expectedPatterns     []string
 	}{
 		{
 			name:                 "default file name",
 			instructionsFileName: "",
-			expectedPattern:      "CLAUDE.md",
+			expectedPatterns:     []string{"CLAUDE.md", ".claude"},
 		},
 		{
 			name:                 "custom file name",
 			instructionsFileName: "custom-instructions.md",
-			expectedPattern:      "custom-instructions.md",
+			expectedPatterns:     []string{"custom-instructions.md", ".claude"},
 		},
 	}
 
@@ -198,8 +199,221 @@ func TestAgent_GitIgnorePatterns_ThenReturnsInstructionsFileName(t *testing.T) {
 
 			patterns := agent.GitIgnorePatterns()
 
-			require.Len(t, patterns, 1)
-			assert.Equal(t, tt.expectedPattern, patterns[0])
+			require.Len(t, patterns, 2)
+			assert.Equal(t, tt.expectedPatterns, patterns)
 		})
 	}
+}
+
+func TestAgent_RebuildSkills_WhenNoSkills_ThenDoesNotCreateDirectory(t *testing.T) {
+	t.Parallel()
+
+	fs := afero.NewMemMapFs()
+	agent := NewAgent(Options{}, fs)
+
+	mockRepo := skillAPI.NewMockRepository(t)
+	mockRepo.EXPECT().GetAll().Return([]skillAPI.Skill{}, nil)
+
+	err := agent.RebuildSkills(mockRepo)
+	require.NoError(t, err)
+
+	exists, err := afero.DirExists(fs, ".claude/skills")
+	require.NoError(t, err)
+	assert.False(t, exists)
+}
+
+func TestAgent_RebuildSkills_WhenSingleSkillWithoutScripts_ThenCreatesSkillDirectory(t *testing.T) {
+	t.Parallel()
+
+	fs := afero.NewMemMapFs()
+	agent := NewAgent(Options{}, fs)
+
+	skill := skillAPI.Skill{
+		Metadata: skillAPI.Metadata{
+			Name:        "test-skill",
+			Description: "A test skill",
+		},
+		Instructions: "Test instructions content",
+		Scripts:      nil,
+	}
+
+	mockRepo := skillAPI.NewMockRepository(t)
+	mockRepo.EXPECT().GetAll().Return([]skillAPI.Skill{skill}, nil)
+
+	err := agent.RebuildSkills(mockRepo)
+	require.NoError(t, err)
+
+	content, err := afero.ReadFile(fs, ".claude/skills/test-skill/SKILL.md")
+	require.NoError(t, err)
+
+	expectedContent := `---
+name: test-skill
+description: A test skill
+---
+
+Test instructions content`
+	assert.Equal(t, expectedContent, string(content))
+
+	exists, err := afero.DirExists(fs, ".claude/skills/test-skill/scripts")
+	require.NoError(t, err)
+	assert.False(t, exists)
+}
+
+func TestAgent_RebuildSkills_WhenSkillWithScripts_ThenCreatesScriptsDirectory(t *testing.T) {
+	t.Parallel()
+
+	fs := afero.NewMemMapFs()
+	agent := NewAgent(Options{}, fs)
+
+	skill := skillAPI.Skill{
+		Metadata: skillAPI.Metadata{
+			Name:        "git-commit",
+			Description: "Create a git commit",
+		},
+		Instructions: "Commit instructions",
+		Scripts: map[skillAPI.ScriptName]skillAPI.Script{
+			"git-commit.sh": {
+				ContentType: "application/x-sh",
+				Content:     []byte("#!/bin/bash\necho 'test'"),
+			},
+		},
+	}
+
+	mockRepo := skillAPI.NewMockRepository(t)
+	mockRepo.EXPECT().GetAll().Return([]skillAPI.Skill{skill}, nil)
+
+	err := agent.RebuildSkills(mockRepo)
+	require.NoError(t, err)
+
+	skillContent, err := afero.ReadFile(fs, ".claude/skills/git-commit/SKILL.md")
+	require.NoError(t, err)
+	assert.Contains(t, string(skillContent), "git-commit")
+	assert.Contains(t, string(skillContent), "Create a git commit")
+	assert.Contains(t, string(skillContent), "Commit instructions")
+
+	scriptContent, err := afero.ReadFile(fs, ".claude/skills/git-commit/scripts/git-commit.sh")
+	require.NoError(t, err)
+	assert.Equal(t, "#!/bin/bash\necho 'test'", string(scriptContent))
+
+	info, err := fs.Stat(".claude/skills/git-commit/scripts/git-commit.sh")
+	require.NoError(t, err)
+	assert.Equal(t, 0755, int(info.Mode().Perm()))
+}
+
+func TestAgent_RebuildSkills_WhenMultipleSkills_ThenCreatesAllSkills(t *testing.T) {
+	t.Parallel()
+
+	fs := afero.NewMemMapFs()
+	agent := NewAgent(Options{}, fs)
+
+	skills := []skillAPI.Skill{
+		{
+			Metadata: skillAPI.Metadata{
+				Name:        "skill-one",
+				Description: "First skill",
+			},
+			Instructions: "First instructions",
+		},
+		{
+			Metadata: skillAPI.Metadata{
+				Name:        "skill-two",
+				Description: "Second skill",
+			},
+			Instructions: "Second instructions",
+		},
+	}
+
+	mockRepo := skillAPI.NewMockRepository(t)
+	mockRepo.EXPECT().GetAll().Return(skills, nil)
+
+	err := agent.RebuildSkills(mockRepo)
+	require.NoError(t, err)
+
+	content1, err := afero.ReadFile(fs, ".claude/skills/skill-one/SKILL.md")
+	require.NoError(t, err)
+	assert.Contains(t, string(content1), "skill-one")
+	assert.Contains(t, string(content1), "First instructions")
+
+	content2, err := afero.ReadFile(fs, ".claude/skills/skill-two/SKILL.md")
+	require.NoError(t, err)
+	assert.Contains(t, string(content2), "skill-two")
+	assert.Contains(t, string(content2), "Second instructions")
+}
+
+func TestAgent_RebuildSkills_WhenExistingSkills_ThenRemovesOldSkills(t *testing.T) {
+	t.Parallel()
+
+	fs := afero.NewMemMapFs()
+	agent := NewAgent(Options{}, fs)
+
+	err := fs.MkdirAll(".claude/skills/old-skill", 0755)
+	require.NoError(t, err)
+	err = afero.WriteFile(fs, ".claude/skills/old-skill/SKILL.md", []byte("old content"), 0644)
+	require.NoError(t, err)
+
+	skill := skillAPI.Skill{
+		Metadata: skillAPI.Metadata{
+			Name:        "new-skill",
+			Description: "New skill",
+		},
+		Instructions: "New instructions",
+	}
+
+	mockRepo := skillAPI.NewMockRepository(t)
+	mockRepo.EXPECT().GetAll().Return([]skillAPI.Skill{skill}, nil)
+
+	err = agent.RebuildSkills(mockRepo)
+	require.NoError(t, err)
+
+	exists, err := afero.Exists(fs, ".claude/skills/old-skill")
+	require.NoError(t, err)
+	assert.False(t, exists)
+
+	content, err := afero.ReadFile(fs, ".claude/skills/new-skill/SKILL.md")
+	require.NoError(t, err)
+	assert.Contains(t, string(content), "new-skill")
+}
+
+func TestAgent_RebuildSkills_WhenRepositoryFails_ThenReturnsError(t *testing.T) {
+	t.Parallel()
+
+	fs := afero.NewMemMapFs()
+	agent := NewAgent(Options{}, fs)
+
+	mockRepo := skillAPI.NewMockRepository(t)
+	mockRepo.EXPECT().GetAll().Return(nil, assert.AnError)
+
+	err := agent.RebuildSkills(mockRepo)
+
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "skills retrieval")
+}
+
+func TestAgent_RebuildSkills_WhenCustomSkillsDir_ThenUsesCustomPath(t *testing.T) {
+	t.Parallel()
+
+	fs := afero.NewMemMapFs()
+	agent := NewAgent(Options{SkillsDirName: "custom-skills"}, fs)
+
+	skill := skillAPI.Skill{
+		Metadata: skillAPI.Metadata{
+			Name:        "test-skill",
+			Description: "Test skill",
+		},
+		Instructions: "Test instructions",
+	}
+
+	mockRepo := skillAPI.NewMockRepository(t)
+	mockRepo.EXPECT().GetAll().Return([]skillAPI.Skill{skill}, nil)
+
+	err := agent.RebuildSkills(mockRepo)
+	require.NoError(t, err)
+
+	content, err := afero.ReadFile(fs, ".claude/custom-skills/test-skill/SKILL.md")
+	require.NoError(t, err)
+	assert.Contains(t, string(content), "test-skill")
+
+	exists, err := afero.Exists(fs, ".claude/skills")
+	require.NoError(t, err)
+	assert.False(t, exists)
 }
