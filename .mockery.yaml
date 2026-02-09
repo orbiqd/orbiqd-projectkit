@@ -25,3 +25,6 @@ packages:
   github.com/orbiqd/orbiqd-projectkit/pkg/ai/skill:
     interfaces:
       Repository:
+  github.com/orbiqd/orbiqd-projectkit/pkg/project:
+    interfaces:
+      ConfigLoader:

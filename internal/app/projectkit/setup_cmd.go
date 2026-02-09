@@ -11,6 +11,7 @@ import (
 	instructionAPI "github.com/orbiqd/orbiqd-projectkit/pkg/ai/instruction"
 	skillAPI "github.com/orbiqd/orbiqd-projectkit/pkg/ai/skill"
 	projectAPI "github.com/orbiqd/orbiqd-projectkit/pkg/project"
+	rulebookAPI "github.com/orbiqd/orbiqd-projectkit/pkg/rulebook"
 	sourceAPI "github.com/orbiqd/orbiqd-projectkit/pkg/source"
 	"github.com/spf13/afero"
 )
@@ -44,6 +45,18 @@ func (cmd *SetupCmd) Run(
 
 	slog.Info("Project found. Setting up.")
 
+	return cmd.execute(projectFs, currentDir, configLoader, sourceResolver, instructionRepository, skillRepository, agentRegistry)
+}
+
+func (cmd *SetupCmd) execute(
+	projectFs afero.Fs,
+	currentDir string,
+	configLoader projectAPI.ConfigLoader,
+	sourceResolver sourceAPI.Resolver,
+	instructionRepository instructionAPI.Repository,
+	skillRepository skillAPI.Repository,
+	agentRegistry agentAPI.Registry,
+) error {
 	config, err := configLoader.Load()
 	if err != nil {
 		return fmt.Errorf("config loader: %w", err)
@@ -51,7 +64,7 @@ func (cmd *SetupCmd) Run(
 	slog.Debug("Configuration loaded.")
 
 	var instructions []instructionAPI.Instructions
-	if config.AI.Instruction != nil {
+	if config.AI != nil && config.AI.Instruction != nil {
 		instructionsSet, err := cmd.loadInstructionsFromConfig(*config.AI.Instruction, sourceResolver)
 		if err != nil {
 			return fmt.Errorf("load instructions from config: %w", err)
@@ -62,7 +75,7 @@ func (cmd *SetupCmd) Run(
 	slog.Info("AI instructions loaded.", slog.Int("instructionsCount", len(instructions)))
 
 	var skills []skillAPI.Skill
-	if config.AI.Skill != nil {
+	if config.AI != nil && config.AI.Skill != nil {
 		skillsSet, err := cmd.loadSkillsFromConfig(*config.AI.Skill, sourceResolver)
 		if err != nil {
 			return fmt.Errorf("load skills from config: %w", err)
@@ -71,6 +84,18 @@ func (cmd *SetupCmd) Run(
 		skills = append(skills, skillsSet...)
 	}
 	slog.Info("AI skills loaded.", slog.Int("skillsCount", len(skills)))
+
+	if config.Rulebook != nil {
+		rulebooks, err := cmd.loadRulebooksFromConfig(*config.Rulebook, sourceResolver)
+		if err != nil {
+			return fmt.Errorf("load rule books from config: %w", err)
+		}
+
+		for _, rulebook := range rulebooks {
+			instructions = append(instructions, rulebook.AI.Instructions...)
+			skills = append(skills, rulebook.AI.Skills...)
+		}
+	}
 
 	for _, instructionsItem := range instructions {
 		err = instructionRepository.AddInstructions(instructionsItem)
@@ -115,6 +140,34 @@ func (cmd *SetupCmd) Run(
 	slog.Info("All agents configured.", slog.Int("agentsCount", len(agents)))
 
 	return nil
+}
+
+func (cmd *SetupCmd) loadRulebooksFromConfig(config rulebookAPI.Config, sourceResolver sourceAPI.Resolver) ([]rulebookAPI.Rulebook, error) {
+	var rulebooks []rulebookAPI.Rulebook
+
+	for _, rulebookSourceConfig := range config.Sources {
+		rulebookUri := rulebookSourceConfig.URI
+
+		rulebookSource, err := sourceResolver.Resolve(rulebookUri)
+		if err != nil {
+			return []rulebookAPI.Rulebook{}, fmt.Errorf("resolve rulebook uri: %w", err)
+		}
+
+		rulebook, err := rulebookAPI.NewLoader(rulebookSource).Load()
+		if err != nil {
+			return []rulebookAPI.Rulebook{}, fmt.Errorf("load rulebook: %w", err)
+		}
+
+		rulebooks = append(rulebooks, *rulebook)
+
+		slog.Info("Loaded rulebook.",
+			slog.String("sourceUri", rulebookUri),
+			slog.Int("aiInstructionsCount", len(rulebook.AI.Instructions)),
+			slog.Int("aiSkillsCount", len(rulebook.AI.Skills)),
+		)
+	}
+
+	return rulebooks, nil
 }
 
 func (cmd *SetupCmd) setupAgent(projectFs afero.Fs, currentDir string, agent agentAPI.Agent, skillsRepository skillAPI.Repository, instructionRepository instructionAPI.Repository) error {
