@@ -2,6 +2,7 @@ package codex
 
 import (
 	"fmt"
+	"path"
 	"strings"
 
 	"github.com/creasty/defaults"
@@ -61,12 +62,85 @@ func (agent *Agent) RenderInstructions(instructions []instructionAPI.Instruction
 }
 
 func (agent *Agent) RebuildSkills(skillRepository skillAPI.Repository) error {
+	skillsDir := path.Join(agent.options.ProjectSettingsDirName, agent.options.SkillsDirName)
+
+	err := agent.rootFs.RemoveAll(skillsDir)
+	if err != nil {
+		return fmt.Errorf("skills directory removal: %w", err)
+	}
+
+	skills, err := skillRepository.GetAll()
+	if err != nil {
+		return fmt.Errorf("skills retrieval: %w", err)
+	}
+
+	if len(skills) == 0 {
+		return nil
+	}
+
+	for _, skill := range skills {
+		err := agent.renderSkill(skillsDir, skill)
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
+}
+
+func (agent *Agent) renderSkill(skillsDir string, skill skillAPI.Skill) error {
+	skillDir := path.Join(skillsDir, string(skill.Metadata.Name))
+
+	err := agent.rootFs.MkdirAll(skillDir, 0755)
+	if err != nil {
+		return fmt.Errorf("skill directory creation: %w", err)
+	}
+
+	skillFileContent := agent.renderSkillFile(skill)
+	skillFilePath := path.Join(skillDir, "SKILL.md")
+
+	err = afero.WriteFile(agent.rootFs, skillFilePath, []byte(skillFileContent), 0644)
+	if err != nil {
+		return fmt.Errorf("skill file write: %w", err)
+	}
+
+	if len(skill.Scripts) > 0 {
+		scriptsDir := path.Join(skillDir, "scripts")
+
+		err = agent.rootFs.MkdirAll(scriptsDir, 0755)
+		if err != nil {
+			return fmt.Errorf("scripts directory creation: %w", err)
+		}
+
+		for scriptName, script := range skill.Scripts {
+			scriptPath := path.Join(scriptsDir, string(scriptName))
+
+			err = afero.WriteFile(agent.rootFs, scriptPath, script.Content, 0755)
+			if err != nil {
+				return fmt.Errorf("script file write: %w", err)
+			}
+		}
+	}
+
+	return nil
+}
+
+func (agent *Agent) renderSkillFile(skill skillAPI.Skill) string {
+	var builder strings.Builder
+
+	builder.WriteString("---\n")
+	_, _ = fmt.Fprintf(&builder, "name: %s\n", skill.Metadata.Name)
+	_, _ = fmt.Fprintf(&builder, "description: %s\n", skill.Metadata.Description)
+	builder.WriteString("---\n\n")
+	builder.WriteString(skill.Instructions)
+
+	return builder.String()
 }
 
 func (agent *Agent) GitIgnorePatterns() []string {
 	return []string{
 		agent.options.InstructionsFileName,
+		agent.options.ProjectSettingsDirName,
 	}
 }
 

@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-playground/validator/v10"
 	projectAPI "github.com/orbiqd/orbiqd-projectkit/pkg/project"
+	rulebookAPI "github.com/orbiqd/orbiqd-projectkit/pkg/rulebook"
 	"github.com/spf13/afero"
 	"sigs.k8s.io/yaml"
 
@@ -89,7 +90,7 @@ func (loader *ConfigLoader) Load() (*projectAPI.Config, error) {
 		if err != nil {
 			return nil, fmt.Errorf("validate config: %s: %w", path, err)
 		}
-		
+
 		configs = append(configs, *config)
 	}
 
@@ -156,7 +157,7 @@ func (loader *ConfigLoader) validate(config projectAPI.Config) error {
 
 func (loader *ConfigLoader) merge(configs ...projectAPI.Config) projectAPI.Config {
 	result := projectAPI.Config{
-		Rulebook: &projectAPI.RulebookConfig{},
+		Rulebook: &rulebookAPI.Config{},
 		AI: &ai.Config{
 			Instruction: &instruction.Config{},
 			Skill:       &skill.Config{},

@@ -1,13 +1,17 @@
 package claude
 
 import (
+	"errors"
+	"io/fs"
 	"testing"
 
+	agentAPI "github.com/orbiqd/orbiqd-projectkit/pkg/agent"
 	instructionAPI "github.com/orbiqd/orbiqd-projectkit/pkg/ai/instruction"
 	skillAPI "github.com/orbiqd/orbiqd-projectkit/pkg/ai/skill"
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.nhat.io/aferomock"
 )
 
 func TestAgent_RenderInstructions_WhenInstructionsProvided_ThenWritesMarkdownFile(t *testing.T) {
@@ -416,4 +420,172 @@ func TestAgent_RebuildSkills_WhenCustomSkillsDir_ThenUsesCustomPath(t *testing.T
 	exists, err := afero.Exists(fs, ".claude/skills")
 	require.NoError(t, err)
 	assert.False(t, exists)
+}
+
+func TestAgent_RebuildSkills_WhenRemoveAllFails_ThenReturnsError(t *testing.T) {
+	t.Parallel()
+
+	base := afero.NewMemMapFs()
+	fs := aferomock.OverrideFs(base, aferomock.FsCallbacks{
+		RemoveAllFunc: func(path string) error {
+			return errors.New("simulated remove error")
+		},
+	})
+
+	agent := NewAgent(Options{}, fs)
+
+	mockRepo := skillAPI.NewMockRepository(t)
+
+	err := agent.RebuildSkills(mockRepo)
+
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "skills directory removal")
+}
+
+func TestAgent_RebuildSkills_WhenSkillDirCreationFails_ThenReturnsError(t *testing.T) {
+	t.Parallel()
+
+	base := afero.NewMemMapFs()
+	fs := aferomock.OverrideFs(base, aferomock.FsCallbacks{
+		MkdirAllFunc: func(path string, perm fs.FileMode) error {
+			return errors.New("simulated mkdir error")
+		},
+	})
+
+	agent := NewAgent(Options{}, fs)
+
+	skill := skillAPI.Skill{
+		Metadata: skillAPI.Metadata{
+			Name:        "test-skill",
+			Description: "Test skill",
+		},
+		Instructions: "Test instructions",
+	}
+
+	mockRepo := skillAPI.NewMockRepository(t)
+	mockRepo.EXPECT().GetAll().Return([]skillAPI.Skill{skill}, nil)
+
+	err := agent.RebuildSkills(mockRepo)
+
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "skill directory creation")
+}
+
+func TestAgent_RebuildSkills_WhenSkillFileWriteFails_ThenReturnsError(t *testing.T) {
+	t.Parallel()
+
+	base := afero.NewMemMapFs()
+	fs := aferomock.OverrideFs(base, aferomock.FsCallbacks{
+		OpenFileFunc: func(name string, flag int, perm fs.FileMode) (afero.File, error) {
+			if name == ".claude/skills/test-skill/SKILL.md" {
+				return nil, errors.New("simulated open file error")
+			}
+			return base.OpenFile(name, flag, perm)
+		},
+	})
+
+	agent := NewAgent(Options{}, fs)
+
+	skill := skillAPI.Skill{
+		Metadata: skillAPI.Metadata{
+			Name:        "test-skill",
+			Description: "Test skill",
+		},
+		Instructions: "Test instructions",
+	}
+
+	mockRepo := skillAPI.NewMockRepository(t)
+	mockRepo.EXPECT().GetAll().Return([]skillAPI.Skill{skill}, nil)
+
+	err := agent.RebuildSkills(mockRepo)
+
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "skill file write")
+}
+
+func TestAgent_RebuildSkills_WhenScriptsDirCreationFails_ThenReturnsError(t *testing.T) {
+	t.Parallel()
+
+	base := afero.NewMemMapFs()
+	fs := aferomock.OverrideFs(base, aferomock.FsCallbacks{
+		MkdirAllFunc: func(path string, perm fs.FileMode) error {
+			if path == ".claude/skills/test-skill/scripts" {
+				return errors.New("simulated mkdir error")
+			}
+			return base.MkdirAll(path, perm)
+		},
+	})
+
+	agent := NewAgent(Options{}, fs)
+
+	skill := skillAPI.Skill{
+		Metadata: skillAPI.Metadata{
+			Name:        "test-skill",
+			Description: "Test skill",
+		},
+		Instructions: "Test instructions",
+		Scripts: map[skillAPI.ScriptName]skillAPI.Script{
+			"test.sh": {
+				ContentType: "application/x-sh",
+				Content:     []byte("#!/bin/bash\necho test"),
+			},
+		},
+	}
+
+	mockRepo := skillAPI.NewMockRepository(t)
+	mockRepo.EXPECT().GetAll().Return([]skillAPI.Skill{skill}, nil)
+
+	err := agent.RebuildSkills(mockRepo)
+
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "scripts directory creation")
+}
+
+func TestAgent_RebuildSkills_WhenScriptFileWriteFails_ThenReturnsError(t *testing.T) {
+	t.Parallel()
+
+	base := afero.NewMemMapFs()
+	fs := aferomock.OverrideFs(base, aferomock.FsCallbacks{
+		OpenFileFunc: func(name string, flag int, perm fs.FileMode) (afero.File, error) {
+			if name == ".claude/skills/test-skill/scripts/test.sh" {
+				return nil, errors.New("simulated open file error")
+			}
+			return base.OpenFile(name, flag, perm)
+		},
+	})
+
+	agent := NewAgent(Options{}, fs)
+
+	skill := skillAPI.Skill{
+		Metadata: skillAPI.Metadata{
+			Name:        "test-skill",
+			Description: "Test skill",
+		},
+		Instructions: "Test instructions",
+		Scripts: map[skillAPI.ScriptName]skillAPI.Script{
+			"test.sh": {
+				ContentType: "application/x-sh",
+				Content:     []byte("#!/bin/bash\necho test"),
+			},
+		},
+	}
+
+	mockRepo := skillAPI.NewMockRepository(t)
+	mockRepo.EXPECT().GetAll().Return([]skillAPI.Skill{skill}, nil)
+
+	err := agent.RebuildSkills(mockRepo)
+
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "script file write")
+}
+
+func TestAgent_GetKind_ThenReturnsClaudeKind(t *testing.T) {
+	t.Parallel()
+
+	fs := afero.NewMemMapFs()
+	agent := NewAgent(Options{}, fs)
+
+	kind := agent.GetKind()
+
+	assert.Equal(t, agentAPI.Kind(Kind), kind)
 }

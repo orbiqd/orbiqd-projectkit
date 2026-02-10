@@ -62,7 +62,7 @@ func (agent *Agent) RenderInstructions(instructions []instructionAPI.Instruction
 }
 
 func (agent *Agent) RebuildSkills(skillRepository skillAPI.Repository) error {
-	skillsDir := agent.skillsDir()
+	skillsDir := path.Join(agent.options.ProjectSettingsDirName, agent.options.SkillsDirName)
 
 	err := agent.rootFs.RemoveAll(skillsDir)
 	if err != nil {
@@ -86,10 +86,6 @@ func (agent *Agent) RebuildSkills(skillRepository skillAPI.Repository) error {
 	}
 
 	return nil
-}
-
-func (agent *Agent) skillsDir() string {
-	return path.Join(agent.options.ProjectSettingsDirName, agent.options.SkillsDirName)
 }
 
 func (agent *Agent) renderSkill(skillsDir string, skill skillAPI.Skill) error {

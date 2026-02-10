@@ -11,6 +11,7 @@ import (
 	skillAPI "github.com/orbiqd/orbiqd-projectkit/pkg/ai/skill"
 	"github.com/orbiqd/orbiqd-projectkit/pkg/ai/workflow"
 	projectAPI "github.com/orbiqd/orbiqd-projectkit/pkg/project"
+	rulebookAPI "github.com/orbiqd/orbiqd-projectkit/pkg/rulebook"
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -139,8 +140,8 @@ rulebook:
     - uri: "file://./rulebooks/general"
 `,
 			wantConfig: &projectAPI.Config{
-				Rulebook: &projectAPI.RulebookConfig{
-					Sources: []projectAPI.RulebookSourceConfig{
+				Rulebook: &rulebookAPI.Config{
+					Sources: []rulebookAPI.SourceConfig{
 						{URI: "file://./rulebooks/general"},
 					},
 				},
@@ -210,8 +211,8 @@ func TestConfigLoader_validate(t *testing.T) {
 		{
 			name: "WhenValidConfig_ThenReturnsNil",
 			config: projectAPI.Config{
-				Rulebook: &projectAPI.RulebookConfig{
-					Sources: []projectAPI.RulebookSourceConfig{{URI: "file://x"}},
+				Rulebook: &rulebookAPI.Config{
+					Sources: []rulebookAPI.SourceConfig{{URI: "file://x"}},
 				},
 			},
 			wantErr: nil,
@@ -219,8 +220,8 @@ func TestConfigLoader_validate(t *testing.T) {
 		{
 			name: "WhenInvalidConfig_ThenReturnsValidationError",
 			config: projectAPI.Config{
-				Rulebook: &projectAPI.RulebookConfig{
-					Sources: []projectAPI.RulebookSourceConfig{},
+				Rulebook: &rulebookAPI.Config{
+					Sources: []rulebookAPI.SourceConfig{},
 				},
 			},
 			wantErr: projectAPI.ErrConfigValidationFailed,
@@ -380,7 +381,7 @@ func TestConfigLoader_merge(t *testing.T) {
 		name            string
 		configs         []projectAPI.Config
 		wantAgents      []agentAPI.Config
-		wantRulebook    []projectAPI.RulebookSourceConfig
+		wantRulebook    []rulebookAPI.SourceConfig
 		wantInstruction []instruction.SourceConfig
 		wantSkill       []skillAPI.SourceConfig
 		wantWorkflows   []workflow.SourceConfig
@@ -397,15 +398,15 @@ func TestConfigLoader_merge(t *testing.T) {
 			name: "WhenOneConfigWithOnlyRulebook_ThenReturnsRulebookSources",
 			configs: []projectAPI.Config{
 				{
-					Rulebook: &projectAPI.RulebookConfig{
-						Sources: []projectAPI.RulebookSourceConfig{
+					Rulebook: &rulebookAPI.Config{
+						Sources: []rulebookAPI.SourceConfig{
 							{URI: "file://A"},
 							{URI: "file://B"},
 						},
 					},
 				},
 			},
-			wantRulebook:    []projectAPI.RulebookSourceConfig{{URI: "file://A"}, {URI: "file://B"}},
+			wantRulebook:    []rulebookAPI.SourceConfig{{URI: "file://A"}, {URI: "file://B"}},
 			wantInstruction: nil,
 			wantSkill:       nil,
 			wantWorkflows:   nil,
@@ -462,17 +463,17 @@ func TestConfigLoader_merge(t *testing.T) {
 			name: "WhenTwoConfigsWithRulebook_ThenMergesSourcesInOrder",
 			configs: []projectAPI.Config{
 				{
-					Rulebook: &projectAPI.RulebookConfig{
-						Sources: []projectAPI.RulebookSourceConfig{{URI: "file://A"}, {URI: "file://B"}},
+					Rulebook: &rulebookAPI.Config{
+						Sources: []rulebookAPI.SourceConfig{{URI: "file://A"}, {URI: "file://B"}},
 					},
 				},
 				{
-					Rulebook: &projectAPI.RulebookConfig{
-						Sources: []projectAPI.RulebookSourceConfig{{URI: "file://C"}, {URI: "file://D"}},
+					Rulebook: &rulebookAPI.Config{
+						Sources: []rulebookAPI.SourceConfig{{URI: "file://C"}, {URI: "file://D"}},
 					},
 				},
 			},
-			wantRulebook:    []projectAPI.RulebookSourceConfig{{URI: "file://A"}, {URI: "file://B"}, {URI: "file://C"}, {URI: "file://D"}},
+			wantRulebook:    []rulebookAPI.SourceConfig{{URI: "file://A"}, {URI: "file://B"}, {URI: "file://C"}, {URI: "file://D"}},
 			wantInstruction: nil,
 			wantSkill:       nil,
 			wantWorkflows:   nil,
@@ -600,22 +601,22 @@ func TestConfigLoader_merge(t *testing.T) {
 			name: "WhenThreeConfigs_ThenMergesAllInOrder",
 			configs: []projectAPI.Config{
 				{
-					Rulebook: &projectAPI.RulebookConfig{
-						Sources: []projectAPI.RulebookSourceConfig{{URI: "file://A"}},
+					Rulebook: &rulebookAPI.Config{
+						Sources: []rulebookAPI.SourceConfig{{URI: "file://A"}},
 					},
 				},
 				{
-					Rulebook: &projectAPI.RulebookConfig{
-						Sources: []projectAPI.RulebookSourceConfig{{URI: "file://B"}},
+					Rulebook: &rulebookAPI.Config{
+						Sources: []rulebookAPI.SourceConfig{{URI: "file://B"}},
 					},
 				},
 				{
-					Rulebook: &projectAPI.RulebookConfig{
-						Sources: []projectAPI.RulebookSourceConfig{{URI: "file://C"}},
+					Rulebook: &rulebookAPI.Config{
+						Sources: []rulebookAPI.SourceConfig{{URI: "file://C"}},
 					},
 				},
 			},
-			wantRulebook:    []projectAPI.RulebookSourceConfig{{URI: "file://A"}, {URI: "file://B"}, {URI: "file://C"}},
+			wantRulebook:    []rulebookAPI.SourceConfig{{URI: "file://A"}, {URI: "file://B"}, {URI: "file://C"}},
 			wantInstruction: nil,
 			wantSkill:       nil,
 			wantWorkflows:   nil,
@@ -624,8 +625,8 @@ func TestConfigLoader_merge(t *testing.T) {
 			name: "WhenMixedFields_ThenMergesEachFieldIndependently",
 			configs: []projectAPI.Config{
 				{
-					Rulebook: &projectAPI.RulebookConfig{
-						Sources: []projectAPI.RulebookSourceConfig{{URI: "file://A"}},
+					Rulebook: &rulebookAPI.Config{
+						Sources: []rulebookAPI.SourceConfig{{URI: "file://A"}},
 					},
 					AI: &ai.Config{
 						Instruction: &instruction.Config{
@@ -637,12 +638,12 @@ func TestConfigLoader_merge(t *testing.T) {
 					},
 				},
 				{
-					Rulebook: &projectAPI.RulebookConfig{
-						Sources: []projectAPI.RulebookSourceConfig{{URI: "file://C"}},
+					Rulebook: &rulebookAPI.Config{
+						Sources: []rulebookAPI.SourceConfig{{URI: "file://C"}},
 					},
 				},
 			},
-			wantRulebook:    []projectAPI.RulebookSourceConfig{{URI: "file://A"}, {URI: "file://C"}},
+			wantRulebook:    []rulebookAPI.SourceConfig{{URI: "file://A"}, {URI: "file://C"}},
 			wantInstruction: []instruction.SourceConfig{{URI: "file://B"}},
 			wantSkill:       []skillAPI.SourceConfig{{URI: "file://C"}},
 			wantWorkflows:   nil,
@@ -714,8 +715,8 @@ func TestConfigLoader_merge(t *testing.T) {
 			configs: []projectAPI.Config{
 				{
 					Agents: []agentAPI.Config{{Kind: "claude"}},
-					Rulebook: &projectAPI.RulebookConfig{
-						Sources: []projectAPI.RulebookSourceConfig{{URI: "file://A"}},
+					Rulebook: &rulebookAPI.Config{
+						Sources: []rulebookAPI.SourceConfig{{URI: "file://A"}},
 					},
 					AI: &ai.Config{
 						Instruction: &instruction.Config{
@@ -728,13 +729,13 @@ func TestConfigLoader_merge(t *testing.T) {
 				},
 				{
 					Agents: []agentAPI.Config{{Kind: "cursor"}},
-					Rulebook: &projectAPI.RulebookConfig{
-						Sources: []projectAPI.RulebookSourceConfig{{URI: "file://C"}},
+					Rulebook: &rulebookAPI.Config{
+						Sources: []rulebookAPI.SourceConfig{{URI: "file://C"}},
 					},
 				},
 			},
 			wantAgents:      []agentAPI.Config{{Kind: "claude"}, {Kind: "cursor"}},
-			wantRulebook:    []projectAPI.RulebookSourceConfig{{URI: "file://A"}, {URI: "file://C"}},
+			wantRulebook:    []rulebookAPI.SourceConfig{{URI: "file://A"}, {URI: "file://C"}},
 			wantInstruction: []instruction.SourceConfig{{URI: "file://B"}},
 			wantSkill:       []skillAPI.SourceConfig{{URI: "file://D"}},
 			wantWorkflows:   nil,

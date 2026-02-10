@@ -1,15 +1,7 @@
 ai:
-  workflows:
+  skill:
     sources:
-      - uri: local://examples/ai/workflows
-  skills:
+      - uri: rulebook://ai/skills
+  instruction:
     sources:
-      - uri: local://examples/ai/git-commit
-      - uri: local://examples/ai/github
-  instructions:
-    sources:
-      - uri: local://examples/ai/instructions
-docs:
-  standards:
-    sources:
-      - uri: local://examples
+      - uri: rulebook://ai/instructions

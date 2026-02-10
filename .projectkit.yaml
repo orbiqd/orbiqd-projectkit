@@ -5,10 +5,6 @@ agents:
   - kind: claude
     options:
       instructionsFileName: AGENTS_claude.md
-ai:
-  instruction:
-    sources:
-      - uri: local://./rulebooks/general/ai/instructions
-  skill:
-    sources:
-      - uri: local://./rulebooks/general/ai/skills
+rulebook:
+  sources:
+    - uri: local://./rulebooks/general
