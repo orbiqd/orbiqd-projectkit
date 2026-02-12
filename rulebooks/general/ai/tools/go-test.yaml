@@ -1,0 +1,7 @@
+metadata:
+  id: go-test
+  name: Go Test
+  description: A tool for running go tests.
+tool:
+  commands:
+    - go test

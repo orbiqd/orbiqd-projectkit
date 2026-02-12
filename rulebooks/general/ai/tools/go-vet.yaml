@@ -1,7 +1,7 @@
 metadata:
-  id: go-test
-  name: Go Test
-  description: A tool for running go tests.
+  id: go-vet
+  name: Go Vet
+  description: Go Vet examines Go source code and reports suspicious constructs.
 tool:
   commands:
-    - go test
+    - go vet
