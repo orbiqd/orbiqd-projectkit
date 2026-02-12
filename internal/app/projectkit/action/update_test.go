@@ -15,8 +15,8 @@ import (
 	sourceAPI "github.com/orbiqd/orbiqd-projectkit/pkg/source"
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 )
 
 func validInstructionFs(t *testing.T, category string, rules []string) afero.Fs {
@@ -291,10 +291,6 @@ func TestUpdateActionRun_WhenStandardsConfigured_ThenUpdatesStandardRepo(t *test
 	err := action.Run()
 
 	require.NoError(t, err)
-}
-
-func TestUpdateActionRun_WhenRulebookConfigured_ThenMergesAllContent(t *testing.T) {
-	t.Skip("Rulebook loader integration is complex - covered by loader tests")
 }
 
 func TestUpdateActionRun_WhenLoadInstructionsFails_ThenReturnsError(t *testing.T) {
@@ -609,4 +605,113 @@ func TestUpdateActionRun_WhenWorkflowAddFails_ThenReturnsError(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "add workflow")
 	assert.ErrorIs(t, err, addErr)
+}
+
+func validRulebookFs(t *testing.T) afero.Fs {
+	t.Helper()
+
+	fs := afero.NewMemMapFs()
+
+	rulebookMetadata := `ai:
+  instruction:
+    sources:
+      - uri: rulebook://ai/instructions
+  skill:
+    sources:
+      - uri: rulebook://ai/skills
+  workflow:
+    sources:
+      - uri: rulebook://ai/workflows
+doc:
+  standard:
+    sources:
+      - uri: rulebook://docs/standards`
+	require.NoError(t, afero.WriteFile(fs, "rulebook.yaml", []byte(rulebookMetadata), 0644))
+
+	require.NoError(t, fs.MkdirAll("/ai/instructions", 0755))
+	instructionContent := `category: "coding"
+rules:
+  - "write clean code"`
+	require.NoError(t, afero.WriteFile(fs, "/ai/instructions/01-coding.yaml", []byte(instructionContent), 0644))
+
+	require.NoError(t, fs.MkdirAll("/ai/skills/test-skill", 0755))
+	skillMetadata := `name: "test-skill"
+description: "A test skill"`
+	require.NoError(t, afero.WriteFile(fs, "/ai/skills/test-skill/metadata.yaml", []byte(skillMetadata), 0644))
+	require.NoError(t, afero.WriteFile(fs, "/ai/skills/test-skill/instructions.md", []byte("Do something useful."), 0644))
+
+	require.NoError(t, fs.MkdirAll("/ai/workflows", 0755))
+	workflowContent := `metadata:
+  id: test-workflow
+  name: Test Workflow
+  description: A test workflow
+  version: 1.0.0
+steps:
+  - id: step1
+    name: Step 1
+    description: First step
+    instructions:
+      - Do something`
+	require.NoError(t, afero.WriteFile(fs, "/ai/workflows/test-workflow.yaml", []byte(workflowContent), 0644))
+
+	require.NoError(t, fs.MkdirAll("/docs/standards", 0755))
+	standardContent := `metadata:
+  name: test-standard
+  version: 1.0.0
+  tags:
+    - test
+  scope:
+    languages:
+      - go
+  relations:
+    standard: []
+specification:
+  purpose: Test standard for testing purposes
+  goals:
+    - First goal of the test standard
+requirements:
+  rules:
+    - level: must
+      statement: This is a test requirement
+      rationale: This is the rationale for the requirement
+examples:
+  good:
+    - title: Good example
+      language: go
+      snippet: |
+        package main
+        func main() {}
+      reason: This is a good example because it follows the standard`
+	require.NoError(t, afero.WriteFile(fs, "/docs/standards/test-standard.yaml", []byte(standardContent), 0644))
+
+	return fs
+}
+
+func TestUpdateActionRun_WhenRulebookConfigured_ThenMergesAllContent(t *testing.T) {
+	t.Parallel()
+
+	mockResolver := sourceAPI.NewMockResolver(t)
+	mockInstructionRepo := instructionAPI.NewMockRepository(t)
+	mockSkillRepo := skillAPI.NewMockRepository(t)
+	mockWorkflowRepo := workflowAPI.NewMockRepository(t)
+	mockStandardRepo := standardAPI.NewMockRepository(t)
+
+	fs := validRulebookFs(t)
+	mockResolver.EXPECT().Resolve("file://./rulebook").Return(fs, nil)
+
+	mockStandardRepo.EXPECT().RemoveAll().Return(nil)
+	mockStandardRepo.EXPECT().AddStandard(mock.AnythingOfType("standard.Standard")).Return(nil)
+	mockInstructionRepo.EXPECT().RemoveAll().Return(nil)
+	mockInstructionRepo.EXPECT().AddInstructions(mock.AnythingOfType("instruction.Instructions")).Return(nil)
+	mockSkillRepo.EXPECT().RemoveAll().Return(nil)
+	mockSkillRepo.EXPECT().AddSkill(mock.AnythingOfType("skill.Skill")).Return(nil)
+	mockWorkflowRepo.EXPECT().RemoveAllWorkflows().Return(nil)
+	mockWorkflowRepo.EXPECT().AddWorkflow(mock.AnythingOfType("workflow.Workflow")).Return(nil)
+
+	config := configWithRulebook("file://./rulebook")
+	action := NewUpdateAction(config, mockResolver, mockInstructionRepo, mockSkillRepo, mockWorkflowRepo, mockStandardRepo)
+
+	err := action.Run()
+
+	require.NoError(t, err)
 }

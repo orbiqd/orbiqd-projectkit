@@ -2,6 +2,7 @@ package projectkit
 
 import (
 	"github.com/orbiqd/orbiqd-projectkit/internal/app/projectkit/action"
+	"github.com/orbiqd/orbiqd-projectkit/internal/pkg/doc/standard"
 	standardAPI "github.com/orbiqd/orbiqd-projectkit/pkg/doc/standard"
 	projectAPI "github.com/orbiqd/orbiqd-projectkit/pkg/project"
 )
@@ -13,5 +14,8 @@ func (cmd *DocStandardRenderCmd) Run(
 	projectFs projectAPI.Fs,
 	standardRepository standardAPI.Repository,
 ) error {
-	return action.NewRenderDocStandardAction(standardRepository, projectFs, config.Docs.Standard.Render).Run()
+	renderers := map[string]standardAPI.Renderer{
+		"markdown": standard.NewMarkdownRenderer(),
+	}
+	return action.NewRenderDocStandardAction(standardRepository, projectFs, config.Docs.Standard.Render, renderers).Run()
 }

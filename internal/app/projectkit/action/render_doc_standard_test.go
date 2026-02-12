@@ -5,6 +5,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/orbiqd/orbiqd-projectkit/internal/pkg/doc/standard"
 	standardAPI "github.com/orbiqd/orbiqd-projectkit/pkg/doc/standard"
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
@@ -55,7 +56,10 @@ func TestRenderDocStandardActionRun_WhenNoRenderConfigs_ThenReturnsNil(t *testin
 	mockRepo.EXPECT().GetAll().Return([]standardAPI.Standard{sampleStandard("Test Standard")}, nil)
 
 	projectFs := afero.NewMemMapFs()
-	action := NewRenderDocStandardAction(mockRepo, projectFs, []standardAPI.RenderConfig{})
+	renderers := map[string]standardAPI.Renderer{
+		"markdown": standard.NewMarkdownRenderer(),
+	}
+	action := NewRenderDocStandardAction(mockRepo, projectFs, []standardAPI.RenderConfig{}, renderers)
 
 	err := action.Run()
 
@@ -72,7 +76,10 @@ func TestRenderDocStandardActionRun_WhenNoStandards_ThenReturnsNil(t *testing.T)
 	renderConfigs := []standardAPI.RenderConfig{
 		{Format: "markdown", Destination: "/docs"},
 	}
-	action := NewRenderDocStandardAction(mockRepo, projectFs, renderConfigs)
+	renderers := map[string]standardAPI.Renderer{
+		"markdown": standard.NewMarkdownRenderer(),
+	}
+	action := NewRenderDocStandardAction(mockRepo, projectFs, renderConfigs, renderers)
 
 	err := action.Run()
 
@@ -85,15 +92,18 @@ func TestRenderDocStandardActionRun_WhenNoStandards_ThenReturnsNil(t *testing.T)
 func TestRenderDocStandardActionRun_WhenSingleStandardMarkdown_ThenWritesFile(t *testing.T) {
 	t.Parallel()
 
-	standard := sampleStandard("Test Standard")
+	std := sampleStandard("Test Standard")
 	mockRepo := standardAPI.NewMockRepository(t)
-	mockRepo.EXPECT().GetAll().Return([]standardAPI.Standard{standard}, nil)
+	mockRepo.EXPECT().GetAll().Return([]standardAPI.Standard{std}, nil)
 
 	projectFs := afero.NewMemMapFs()
 	renderConfigs := []standardAPI.RenderConfig{
 		{Format: "markdown", Destination: "/docs"},
 	}
-	action := NewRenderDocStandardAction(mockRepo, projectFs, renderConfigs)
+	renderers := map[string]standardAPI.Renderer{
+		"markdown": standard.NewMarkdownRenderer(),
+	}
+	action := NewRenderDocStandardAction(mockRepo, projectFs, renderConfigs, renderers)
 
 	err := action.Run()
 
@@ -120,7 +130,10 @@ func TestRenderDocStandardActionRun_WhenMultipleStandards_ThenWritesAllFiles(t *
 	renderConfigs := []standardAPI.RenderConfig{
 		{Format: "markdown", Destination: "/docs"},
 	}
-	action := NewRenderDocStandardAction(mockRepo, projectFs, renderConfigs)
+	renderers := map[string]standardAPI.Renderer{
+		"markdown": standard.NewMarkdownRenderer(),
+	}
+	action := NewRenderDocStandardAction(mockRepo, projectFs, renderConfigs, renderers)
 
 	err := action.Run()
 
@@ -135,15 +148,18 @@ func TestRenderDocStandardActionRun_WhenMultipleStandards_ThenWritesAllFiles(t *
 func TestRenderDocStandardActionRun_WhenDestinationNotExists_ThenCreatesDirectory(t *testing.T) {
 	t.Parallel()
 
-	standard := sampleStandard("Test Standard")
+	std := sampleStandard("Test Standard")
 	mockRepo := standardAPI.NewMockRepository(t)
-	mockRepo.EXPECT().GetAll().Return([]standardAPI.Standard{standard}, nil)
+	mockRepo.EXPECT().GetAll().Return([]standardAPI.Standard{std}, nil)
 
 	projectFs := afero.NewMemMapFs()
 	renderConfigs := []standardAPI.RenderConfig{
 		{Format: "markdown", Destination: "/new/docs"},
 	}
-	action := NewRenderDocStandardAction(mockRepo, projectFs, renderConfigs)
+	renderers := map[string]standardAPI.Renderer{
+		"markdown": standard.NewMarkdownRenderer(),
+	}
+	action := NewRenderDocStandardAction(mockRepo, projectFs, renderConfigs, renderers)
 
 	err := action.Run()
 
@@ -159,9 +175,9 @@ func TestRenderDocStandardActionRun_WhenDestinationNotExists_ThenCreatesDirector
 func TestRenderDocStandardActionRun_WhenCleanDestination_ThenRemovesOnlyMatchingExtensions(t *testing.T) {
 	t.Parallel()
 
-	standard := sampleStandard("Test Standard")
+	std := sampleStandard("Test Standard")
 	mockRepo := standardAPI.NewMockRepository(t)
-	mockRepo.EXPECT().GetAll().Return([]standardAPI.Standard{standard}, nil)
+	mockRepo.EXPECT().GetAll().Return([]standardAPI.Standard{std}, nil)
 
 	projectFs := afero.NewMemMapFs()
 	require.NoError(t, projectFs.MkdirAll("/docs", 0755))
@@ -171,7 +187,10 @@ func TestRenderDocStandardActionRun_WhenCleanDestination_ThenRemovesOnlyMatching
 	renderConfigs := []standardAPI.RenderConfig{
 		{Format: "markdown", Destination: "/docs"},
 	}
-	action := NewRenderDocStandardAction(mockRepo, projectFs, renderConfigs)
+	renderers := map[string]standardAPI.Renderer{
+		"markdown": standard.NewMarkdownRenderer(),
+	}
+	action := NewRenderDocStandardAction(mockRepo, projectFs, renderConfigs, renderers)
 
 	err := action.Run()
 
@@ -194,7 +213,10 @@ func TestRenderDocStandardActionRun_WhenRepositoryGetAllFails_ThenReturnsError(t
 	renderConfigs := []standardAPI.RenderConfig{
 		{Format: "markdown", Destination: "/docs"},
 	}
-	action := NewRenderDocStandardAction(mockRepo, projectFs, renderConfigs)
+	renderers := map[string]standardAPI.Renderer{
+		"markdown": standard.NewMarkdownRenderer(),
+	}
+	action := NewRenderDocStandardAction(mockRepo, projectFs, renderConfigs, renderers)
 
 	err := action.Run()
 
@@ -206,15 +228,18 @@ func TestRenderDocStandardActionRun_WhenRepositoryGetAllFails_ThenReturnsError(t
 func TestRenderDocStandardActionRun_WhenUnsupportedFormat_ThenReturnsUnsupportedFormatError(t *testing.T) {
 	t.Parallel()
 
-	standard := sampleStandard("Test Standard")
+	std := sampleStandard("Test Standard")
 	mockRepo := standardAPI.NewMockRepository(t)
-	mockRepo.EXPECT().GetAll().Return([]standardAPI.Standard{standard}, nil)
+	mockRepo.EXPECT().GetAll().Return([]standardAPI.Standard{std}, nil)
 
 	projectFs := afero.NewMemMapFs()
 	renderConfigs := []standardAPI.RenderConfig{
 		{Format: "html", Destination: "/docs"},
 	}
-	action := NewRenderDocStandardAction(mockRepo, projectFs, renderConfigs)
+	renderers := map[string]standardAPI.Renderer{
+		"markdown": standard.NewMarkdownRenderer(),
+	}
+	action := NewRenderDocStandardAction(mockRepo, projectFs, renderConfigs, renderers)
 
 	err := action.Run()
 
@@ -225,9 +250,9 @@ func TestRenderDocStandardActionRun_WhenUnsupportedFormat_ThenReturnsUnsupported
 func TestRenderDocStandardActionRun_WhenWriteFileFails_ThenReturnsError(t *testing.T) {
 	t.Parallel()
 
-	standard := sampleStandard("Test Standard")
+	std := sampleStandard("Test Standard")
 	mockRepo := standardAPI.NewMockRepository(t)
-	mockRepo.EXPECT().GetAll().Return([]standardAPI.Standard{standard}, nil)
+	mockRepo.EXPECT().GetAll().Return([]standardAPI.Standard{std}, nil)
 
 	writeErr := errors.New("write file error")
 	baseFs := afero.NewMemMapFs()
@@ -240,7 +265,10 @@ func TestRenderDocStandardActionRun_WhenWriteFileFails_ThenReturnsError(t *testi
 	renderConfigs := []standardAPI.RenderConfig{
 		{Format: "markdown", Destination: "/docs"},
 	}
-	action := NewRenderDocStandardAction(mockRepo, projectFs, renderConfigs)
+	renderers := map[string]standardAPI.Renderer{
+		"markdown": standard.NewMarkdownRenderer(),
+	}
+	action := NewRenderDocStandardAction(mockRepo, projectFs, renderConfigs, renderers)
 
 	err := action.Run()
 
@@ -251,9 +279,9 @@ func TestRenderDocStandardActionRun_WhenWriteFileFails_ThenReturnsError(t *testi
 func TestRenderDocStandardActionRun_WhenCleanDestinationRemoveFails_ThenReturnsError(t *testing.T) {
 	t.Parallel()
 
-	standard := sampleStandard("Test Standard")
+	std := sampleStandard("Test Standard")
 	mockRepo := standardAPI.NewMockRepository(t)
-	mockRepo.EXPECT().GetAll().Return([]standardAPI.Standard{standard}, nil)
+	mockRepo.EXPECT().GetAll().Return([]standardAPI.Standard{std}, nil)
 
 	baseFs := afero.NewMemMapFs()
 	require.NoError(t, baseFs.MkdirAll("/docs", 0755))
@@ -269,10 +297,132 @@ func TestRenderDocStandardActionRun_WhenCleanDestinationRemoveFails_ThenReturnsE
 	renderConfigs := []standardAPI.RenderConfig{
 		{Format: "markdown", Destination: "/docs"},
 	}
-	action := NewRenderDocStandardAction(mockRepo, projectFs, renderConfigs)
+	renderers := map[string]standardAPI.Renderer{
+		"markdown": standard.NewMarkdownRenderer(),
+	}
+	action := NewRenderDocStandardAction(mockRepo, projectFs, renderConfigs, renderers)
 
 	err := action.Run()
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to clean destination")
+}
+
+func TestRenderDocStandardActionRun_WhenCleanDestinationHasSubdirectory_ThenSkipsDirectory(t *testing.T) {
+	t.Parallel()
+
+	std := sampleStandard("Test Standard")
+	mockRepo := standardAPI.NewMockRepository(t)
+	mockRepo.EXPECT().GetAll().Return([]standardAPI.Standard{std}, nil)
+
+	projectFs := afero.NewMemMapFs()
+	require.NoError(t, projectFs.MkdirAll("/docs", 0755))
+	require.NoError(t, projectFs.MkdirAll("/docs/subdir", 0755))
+	require.NoError(t, afero.WriteFile(projectFs, "/docs/old.md", []byte("old content"), 0644))
+
+	renderConfigs := []standardAPI.RenderConfig{
+		{Format: "markdown", Destination: "/docs"},
+	}
+	renderers := map[string]standardAPI.Renderer{
+		"markdown": standard.NewMarkdownRenderer(),
+	}
+	action := NewRenderDocStandardAction(mockRepo, projectFs, renderConfigs, renderers)
+
+	err := action.Run()
+
+	require.NoError(t, err)
+
+	subdirExists, _ := afero.DirExists(projectFs, "/docs/subdir")
+	assert.True(t, subdirExists)
+
+	oldExists, _ := afero.Exists(projectFs, "/docs/old.md")
+	assert.False(t, oldExists)
+}
+
+func TestRenderDocStandardActionRun_WhenDirExistsFails_ThenReturnsError(t *testing.T) {
+	t.Parallel()
+
+	std := sampleStandard("Test Standard")
+	mockRepo := standardAPI.NewMockRepository(t)
+	mockRepo.EXPECT().GetAll().Return([]standardAPI.Standard{std}, nil)
+
+	statErr := errors.New("stat error")
+	baseFs := afero.NewMemMapFs()
+	projectFs := aferomock.OverrideFs(baseFs, aferomock.FsCallbacks{
+		StatFunc: func(name string) (os.FileInfo, error) {
+			return nil, statErr
+		},
+	})
+
+	renderConfigs := []standardAPI.RenderConfig{
+		{Format: "markdown", Destination: "/docs"},
+	}
+	renderers := map[string]standardAPI.Renderer{
+		"markdown": standard.NewMarkdownRenderer(),
+	}
+	action := NewRenderDocStandardAction(mockRepo, projectFs, renderConfigs, renderers)
+
+	err := action.Run()
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, statErr)
+}
+
+func TestRenderDocStandardActionRun_WhenReadDirFails_ThenReturnsError(t *testing.T) {
+	t.Parallel()
+
+	std := sampleStandard("Test Standard")
+	mockRepo := standardAPI.NewMockRepository(t)
+	mockRepo.EXPECT().GetAll().Return([]standardAPI.Standard{std}, nil)
+
+	baseFs := afero.NewMemMapFs()
+	require.NoError(t, baseFs.MkdirAll("/docs", 0755))
+
+	openErr := errors.New("open error")
+	projectFs := aferomock.OverrideFs(baseFs, aferomock.FsCallbacks{
+		OpenFunc: func(name string) (afero.File, error) {
+			return nil, openErr
+		},
+	})
+
+	renderConfigs := []standardAPI.RenderConfig{
+		{Format: "markdown", Destination: "/docs"},
+	}
+	renderers := map[string]standardAPI.Renderer{
+		"markdown": standard.NewMarkdownRenderer(),
+	}
+	action := NewRenderDocStandardAction(mockRepo, projectFs, renderConfigs, renderers)
+
+	err := action.Run()
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, openErr)
+}
+
+func TestRenderDocStandardActionRun_WhenRendererRenderFails_ThenReturnsError(t *testing.T) {
+	t.Parallel()
+
+	std := sampleStandard("Test Standard")
+	mockRepo := standardAPI.NewMockRepository(t)
+	mockRepo.EXPECT().GetAll().Return([]standardAPI.Standard{std}, nil)
+
+	renderErr := errors.New("render error")
+	mockRenderer := standardAPI.NewMockRenderer(t)
+	mockRenderer.EXPECT().FileExtension().Return(".md")
+	mockRenderer.EXPECT().Render(std).Return(nil, renderErr)
+
+	projectFs := afero.NewMemMapFs()
+	renderConfigs := []standardAPI.RenderConfig{
+		{Format: "markdown", Destination: "/docs"},
+	}
+	renderers := map[string]standardAPI.Renderer{
+		"markdown": mockRenderer,
+	}
+	action := NewRenderDocStandardAction(mockRepo, projectFs, renderConfigs, renderers)
+
+	err := action.Run()
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to render standard")
+	assert.ErrorIs(t, err, renderErr)
 }

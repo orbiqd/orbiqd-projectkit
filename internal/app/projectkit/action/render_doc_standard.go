@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 
 	"github.com/iancoleman/strcase"
-	"github.com/orbiqd/orbiqd-projectkit/internal/pkg/doc/standard"
 	standardAPI "github.com/orbiqd/orbiqd-projectkit/pkg/doc/standard"
 	projectAPI "github.com/orbiqd/orbiqd-projectkit/pkg/project"
 	"github.com/spf13/afero"
@@ -19,17 +18,20 @@ type RenderDocStandardAction struct {
 	standardRepository standardAPI.Repository
 	projectFs          projectAPI.Fs
 	renderConfigs      []standardAPI.RenderConfig
+	renderers          map[string]standardAPI.Renderer
 }
 
 func NewRenderDocStandardAction(
 	standardRepository standardAPI.Repository,
 	projectFs projectAPI.Fs,
 	renderConfigs []standardAPI.RenderConfig,
+	renderers map[string]standardAPI.Renderer,
 ) *RenderDocStandardAction {
 	return &RenderDocStandardAction{
 		standardRepository: standardRepository,
 		projectFs:          projectFs,
 		renderConfigs:      renderConfigs,
+		renderers:          renderers,
 	}
 }
 
@@ -87,12 +89,11 @@ func (action *RenderDocStandardAction) renderToDestination(
 }
 
 func (action *RenderDocStandardAction) createRenderer(renderConfig standardAPI.RenderConfig) (standardAPI.Renderer, error) {
-	switch renderConfig.Format {
-	case "markdown":
-		return standard.NewMarkdownRenderer(), nil
-	default:
+	r, ok := action.renderers[renderConfig.Format]
+	if !ok {
 		return nil, fmt.Errorf("%w: %s", ErrUnsupportedFormat, renderConfig.Format)
 	}
+	return r, nil
 }
 
 func (action *RenderDocStandardAction) cleanDestination(renderConfig standardAPI.RenderConfig, fileExtension string) error {

@@ -96,13 +96,3 @@ func (action *RenderAgentAction) Run() error {
 
 	return nil
 }
-
-func RenderAgent(
-	gitFs git.Fs,
-	config projectAPI.Config,
-	agentRegistry agentAPI.Registry,
-	skillRepository skillAPI.Repository,
-	instructionRepository instructionAPI.Repository,
-) error {
-	return NewRenderAgentAction(gitFs, config, agentRegistry, skillRepository, instructionRepository).Run()
-}
