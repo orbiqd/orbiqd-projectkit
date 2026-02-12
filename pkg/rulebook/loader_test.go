@@ -197,6 +197,19 @@ func TestLoader_loadMetadata_ValidatesStructure(t *testing.T) {
 				assert.Equal(t, "rulebook://docs/standards/golang", metadata.Doc.Standard.Sources[0].URI)
 			},
 		},
+		{
+			name: "metadata with workflow sources",
+			yamlContent: `ai:
+  workflow:
+    sources:
+      - uri: rulebook://ai/workflows`,
+			validateFunc: func(t *testing.T, metadata *Metadata) {
+				require.NotNil(t, metadata.AI)
+				require.NotNil(t, metadata.AI.Workflows)
+				require.Len(t, metadata.AI.Workflows.Sources, 1)
+				assert.Equal(t, "rulebook://ai/workflows", metadata.AI.Workflows.Sources[0].URI)
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -315,6 +328,30 @@ func TestLoader_validateMetadata(t *testing.T) {
 				Doc: &doc.Config{
 					Standard: &standard.Config{
 						Sources: []standard.SourceConfig{},
+					},
+				},
+			},
+			wantErr: ErrValidationFailed,
+		},
+		{
+			name: "valid workflow config",
+			metadata: Metadata{
+				AI: &ai.Config{
+					Workflows: &workflow.Config{
+						Sources: []workflow.SourceConfig{
+							{URI: "rulebook://ai/workflows"},
+						},
+					},
+				},
+			},
+			wantErr: nil,
+		},
+		{
+			name: "invalid workflow config - empty sources",
+			metadata: Metadata{
+				AI: &ai.Config{
+					Workflows: &workflow.Config{
+						Sources: []workflow.SourceConfig{},
 					},
 				},
 			},
@@ -754,6 +791,188 @@ examples:
 			errContain: "doc standards: load doc standards",
 			validate: func(t *testing.T, rb *Rulebook) {
 				assert.Nil(t, rb)
+			},
+		},
+		{
+			name: "only workflows",
+			setupFs: func(fs afero.Fs) {
+				_ = afero.WriteFile(fs, rulebookFileName, []byte(`ai:
+  workflow:
+    sources:
+      - uri: rulebook://ai/workflows`), 0644)
+
+				_ = fs.MkdirAll("/ai/workflows", 0755)
+				_ = afero.WriteFile(fs, "/ai/workflows/test-workflow.yaml", []byte(`metadata:
+  id: test-workflow
+  name: Test Workflow
+  description: A test workflow
+  version: 1.0.0
+steps:
+  - id: step1
+    name: Step 1
+    description: First step
+    instructions:
+      - Do something`), 0644)
+			},
+			wantErr: false,
+			validate: func(t *testing.T, rb *Rulebook) {
+				require.NotNil(t, rb)
+				assert.Empty(t, rb.AI.Instructions)
+				assert.Empty(t, rb.AI.Skills)
+				assert.Len(t, rb.AI.Workflows, 1)
+				assert.Equal(t, workflow.WorkflowId("test-workflow"), rb.AI.Workflows[0].Metadata.ID)
+			},
+		},
+		{
+			name: "workflow URI resolution fails",
+			setupFs: func(fs afero.Fs) {
+				_ = afero.WriteFile(fs, rulebookFileName, []byte(`ai:
+  workflow:
+    sources:
+      - uri: http://invalid/scheme`), 0644)
+			},
+			wantErr:    true,
+			errContain: "ai workflows: resolve source path",
+			validate: func(t *testing.T, rb *Rulebook) {
+				assert.Nil(t, rb)
+			},
+		},
+		{
+			name: "workflow loading fails",
+			setupFs: func(fs afero.Fs) {
+				_ = afero.WriteFile(fs, rulebookFileName, []byte(`ai:
+  workflow:
+    sources:
+      - uri: rulebook://ai/workflows`), 0644)
+
+				_ = fs.MkdirAll("/ai/workflows", 0755)
+			},
+			wantErr:    true,
+			errContain: "ai workflows: load ai workflows",
+			validate: func(t *testing.T, rb *Rulebook) {
+				assert.Nil(t, rb)
+			},
+		},
+		{
+			name: "all components loaded",
+			setupFs: func(fs afero.Fs) {
+				_ = afero.WriteFile(fs, rulebookFileName, []byte(`ai:
+  instruction:
+    sources:
+      - uri: rulebook://ai/instructions
+  skill:
+    sources:
+      - uri: rulebook://ai/skills
+  workflow:
+    sources:
+      - uri: rulebook://ai/workflows
+doc:
+  standard:
+    sources:
+      - uri: rulebook://docs/standards`), 0644)
+
+				_ = fs.MkdirAll("/ai/instructions", 0755)
+				_ = afero.WriteFile(fs, "/ai/instructions/01-coding.yaml", []byte(`category: "coding"
+rules:
+  - "write clean code"`), 0644)
+
+				_ = fs.MkdirAll("/ai/skills/my-skill", 0755)
+				_ = afero.WriteFile(fs, "/ai/skills/my-skill/metadata.yaml", []byte(`name: "my-skill"
+description: "A test skill"`), 0644)
+				_ = afero.WriteFile(fs, "/ai/skills/my-skill/instructions.md", []byte("Do something useful."), 0644)
+
+				_ = fs.MkdirAll("/ai/workflows", 0755)
+				_ = afero.WriteFile(fs, "/ai/workflows/test-workflow.yaml", []byte(`metadata:
+  id: test-workflow
+  name: Test Workflow
+  description: A test workflow
+  version: 1.0.0
+steps:
+  - id: step1
+    name: Step 1
+    description: First step
+    instructions:
+      - Do something`), 0644)
+
+				_ = fs.MkdirAll("/docs/standards", 0755)
+				_ = afero.WriteFile(fs, "/docs/standards/logging.yaml", []byte(`metadata:
+  name: logging
+  version: 0.1.0
+  tags:
+    - logging
+  scope:
+    languages:
+      - go
+  relations:
+    standard: []
+specification:
+  purpose: Logging standard for testing purposes only
+  goals:
+    - use structured logging
+requirements:
+  rules:
+    - level: must
+      statement: Use structured logging for all log messages
+      rationale: Structured logs are easier to parse and analyze
+examples:
+  good:
+    - title: Structured logging example
+      language: go
+      snippet: log.Info("message")
+      reason: Uses structured logging`), 0644)
+			},
+			wantErr: false,
+			validate: func(t *testing.T, rb *Rulebook) {
+				require.NotNil(t, rb)
+				assert.Len(t, rb.AI.Instructions, 1)
+				assert.Len(t, rb.AI.Skills, 1)
+				assert.Len(t, rb.AI.Workflows, 1)
+				assert.Len(t, rb.Doc.Standards, 1)
+				assert.Equal(t, workflow.WorkflowId("test-workflow"), rb.AI.Workflows[0].Metadata.ID)
+				assert.Equal(t, "logging", rb.Doc.Standards[0].Metadata.Name)
+			},
+		},
+		{
+			name: "multiple workflow sources",
+			setupFs: func(fs afero.Fs) {
+				_ = afero.WriteFile(fs, rulebookFileName, []byte(`ai:
+  workflow:
+    sources:
+      - uri: rulebook://ai/workflows1
+      - uri: rulebook://ai/workflows2`), 0644)
+
+				_ = fs.MkdirAll("/ai/workflows1", 0755)
+				_ = afero.WriteFile(fs, "/ai/workflows1/workflow1.yaml", []byte(`metadata:
+  id: workflow1
+  name: Workflow 1
+  description: First workflow
+  version: 1.0.0
+steps:
+  - id: step1
+    name: Step 1
+    description: First step
+    instructions:
+      - Do something`), 0644)
+
+				_ = fs.MkdirAll("/ai/workflows2", 0755)
+				_ = afero.WriteFile(fs, "/ai/workflows2/workflow2.yaml", []byte(`metadata:
+  id: workflow2
+  name: Workflow 2
+  description: Second workflow
+  version: 1.0.0
+steps:
+  - id: step1
+    name: Step 1
+    description: First step
+    instructions:
+      - Do something else`), 0644)
+			},
+			wantErr: false,
+			validate: func(t *testing.T, rb *Rulebook) {
+				require.NotNil(t, rb)
+				assert.Len(t, rb.AI.Workflows, 2)
+				assert.Equal(t, workflow.WorkflowId("workflow1"), rb.AI.Workflows[0].Metadata.ID)
+				assert.Equal(t, workflow.WorkflowId("workflow2"), rb.AI.Workflows[1].Metadata.ID)
 			},
 		},
 	}

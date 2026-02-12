@@ -337,3 +337,16 @@ func TestLoader_Load_WhenInvalidWorkflow_ThenReturnsError(t *testing.T) {
 	assert.Empty(t, got)
 }
 
+func TestLoader_Load_WhenResolvePathsFails_ThenReturnsError(t *testing.T) {
+	t.Parallel()
+
+	fs := fsWithOpenError(t, afero.NewMemMapFs(), func(string) bool { return true })
+	loader := NewLoader(fs)
+
+	got, err := loader.Load()
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to resolve paths")
+	assert.Nil(t, got)
+}
+

@@ -1,5 +1,5 @@
 package workflow
 
 type Service interface {
-	Execute()
+	Execute(workflowId WorkflowId) (ExecutionId, error)
 }
