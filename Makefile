@@ -5,7 +5,6 @@ build: build-local
 build-local: lint generate-mocks
 	mkdir -p bin
 	go build -o bin/projectkit ./cmd/projectkit
-	go build -o bin/projectkit-mcp ./cmd/projectkit-mcp
 
 # Release build (all platforms via GoReleaser)
 build-release: lint
