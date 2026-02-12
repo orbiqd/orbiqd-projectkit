@@ -9,6 +9,7 @@ import (
 	"github.com/iancoleman/strcase"
 	agentAPI "github.com/orbiqd/orbiqd-projectkit/pkg/agent"
 	instructionAPI "github.com/orbiqd/orbiqd-projectkit/pkg/ai/instruction"
+	mcpAPI "github.com/orbiqd/orbiqd-projectkit/pkg/ai/mcp"
 	skillAPI "github.com/orbiqd/orbiqd-projectkit/pkg/ai/skill"
 	"github.com/spf13/afero"
 	"golang.org/x/text/cases"
@@ -85,6 +86,10 @@ func (agent *Agent) RebuildSkills(skillRepository skillAPI.Repository) error {
 		}
 	}
 
+	return nil
+}
+
+func (agent *Agent) RenderMCPServers(mcpServer mcpAPI.MCPServer) error {
 	return nil
 }
 
