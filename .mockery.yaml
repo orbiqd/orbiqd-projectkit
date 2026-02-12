@@ -34,3 +34,4 @@ packages:
   github.com/orbiqd/orbiqd-projectkit/pkg/doc/standard:
     interfaces:
       Renderer:
+      Repository:
