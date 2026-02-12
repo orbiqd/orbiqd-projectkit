@@ -17,6 +17,7 @@ func validStandardFs(t *testing.T, name, version string) afero.Fs {
 
 	fs := afero.NewMemMapFs()
 	content := `metadata:
+  id: test-standard
   name: ` + name + `
   version: ` + version + `
   tags:

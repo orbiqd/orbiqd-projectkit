@@ -704,6 +704,7 @@ rules:
 
 				_ = fs.MkdirAll("/docs/standards", 0755)
 				_ = afero.WriteFile(fs, "/docs/standards/logging.yaml", []byte(`metadata:
+  id: logging
   name: logging
   version: 0.1.0
   tags:
@@ -765,6 +766,7 @@ description: "A test skill"`), 0644)
 
 				_ = fs.MkdirAll("/docs/standards", 0755)
 				_ = afero.WriteFile(fs, "/docs/standards/logging.yaml", []byte(`metadata:
+  id: logging
   name: logging
   version: 0.1.0
   tags:
@@ -993,6 +995,7 @@ stdio:
 
 				_ = fs.MkdirAll("/docs/standards", 0755)
 				_ = afero.WriteFile(fs, "/docs/standards/logging.yaml", []byte(`metadata:
+  id: logging
   name: logging
   version: 0.1.0
   tags:

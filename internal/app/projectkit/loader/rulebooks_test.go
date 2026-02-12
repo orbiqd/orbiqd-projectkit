@@ -47,6 +47,7 @@ description: ` + skillDescription + `
 
 	require.NoError(t, fs.MkdirAll("/docs/standards", 0755))
 	standardContent := `metadata:
+  id: test-standard
   name: test-standard
   version: 0.1.0
   tags:
