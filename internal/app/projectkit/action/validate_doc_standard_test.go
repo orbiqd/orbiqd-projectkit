@@ -12,6 +12,7 @@ func validStandardYAML(t *testing.T) string {
 	t.Helper()
 
 	return `metadata:
+  id: test-standard
   name: Test Standard
   version: 1.0.0
   tags:

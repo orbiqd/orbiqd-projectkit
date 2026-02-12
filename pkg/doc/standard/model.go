@@ -1,5 +1,7 @@
 package standard
 
+type StandardId string
+
 type ScopeMetadata struct {
 	Languages       []string `json:"languages" validate:"required,min=1,dive,iso639_1"`
 	AppliesTo       []string `json:"appliesTo,omitempty" validate:"omitempty,dive,min=1,max=100"`
@@ -11,6 +13,7 @@ type RelationMetadata struct {
 }
 
 type Metadata struct {
+	Id      StandardId       `json:"id" validate:"required,kebab_case,min=1,max=100"`
 	Name    string           `json:"name" validate:"required,name_format,min=1,max=200"`
 	Version string           `json:"version" validate:"required,semver"`
 	Tags    []string         `json:"tags" validate:"required,min=1,dive,kebab_case,min=1,max=50"`

@@ -6,6 +6,7 @@ import (
 
 	aiAPI "github.com/orbiqd/orbiqd-projectkit/pkg/ai"
 	instructionAPI "github.com/orbiqd/orbiqd-projectkit/pkg/ai/instruction"
+	mcpAPI "github.com/orbiqd/orbiqd-projectkit/pkg/ai/mcp"
 	skillAPI "github.com/orbiqd/orbiqd-projectkit/pkg/ai/skill"
 	workflowAPI "github.com/orbiqd/orbiqd-projectkit/pkg/ai/workflow"
 	docAPI "github.com/orbiqd/orbiqd-projectkit/pkg/doc"
@@ -72,11 +73,24 @@ steps:
 	return fs
 }
 
+func validMCPServerFs(t *testing.T, serverName string, executablePath string) afero.Fs {
+	t.Helper()
+
+	fs := afero.NewMemMapFs()
+
+	content := "name: \"" + serverName + "\"\nstdio:\n  executablePath: \"" + executablePath + "\"\n"
+
+	require.NoError(t, afero.WriteFile(fs, serverName+".yaml", []byte(content), 0644))
+
+	return fs
+}
+
 func validStandardFsForUpdate(t *testing.T, name, version string) afero.Fs {
 	t.Helper()
 
 	fs := afero.NewMemMapFs()
 	content := `metadata:
+  id: test-standard
   name: ` + name + `
   version: ` + version + `
   tags:
@@ -157,6 +171,18 @@ func configWithStandards(uri string) projectAPI.Config {
 	}
 }
 
+func configWithMCP(uri string) projectAPI.Config {
+	return projectAPI.Config{
+		AI: &aiAPI.Config{
+			MCP: &mcpAPI.Config{
+				Sources: []mcpAPI.SourceConfig{
+					{URI: uri},
+				},
+			},
+		},
+	}
+}
+
 func configWithRulebook(uri string) projectAPI.Config {
 	return projectAPI.Config{
 		Rulebook: &rulebook.Config{
@@ -168,21 +194,31 @@ func configWithRulebook(uri string) projectAPI.Config {
 }
 
 func TestUpdateActionRun_WhenEmptyConfig_ThenClearsAllRepos(t *testing.T) {
-	t.Parallel()
+	t.Setenv("BRIEFKIT_BINARY_PATH", "/test/bin/projectkit")
 
 	mockResolver := sourceAPI.NewMockResolver(t)
 	mockInstructionRepo := instructionAPI.NewMockRepository(t)
 	mockSkillRepo := skillAPI.NewMockRepository(t)
 	mockWorkflowRepo := workflowAPI.NewMockRepository(t)
+	mockMcpRepo := mcpAPI.NewMockRepository(t)
 	mockStandardRepo := standardAPI.NewMockRepository(t)
 
 	mockStandardRepo.EXPECT().RemoveAll().Return(nil)
 	mockInstructionRepo.EXPECT().RemoveAll().Return(nil)
 	mockSkillRepo.EXPECT().RemoveAll().Return(nil)
 	mockWorkflowRepo.EXPECT().RemoveAllWorkflows().Return(nil)
+	mockMcpRepo.EXPECT().RemoveAll().Return(nil)
+	mockMcpRepo.EXPECT().AddMCPServer(mock.MatchedBy(func(server mcpAPI.MCPServer) bool {
+		return server.Name == "projectkit" &&
+			server.STDIO != nil &&
+			server.STDIO.ExecutablePath == "/test/bin/projectkit" &&
+			len(server.STDIO.Arguments) == 2 &&
+			server.STDIO.Arguments[0] == "mcp" &&
+			server.STDIO.Arguments[1] == "server"
+	})).Return(nil)
 
 	config := projectAPI.Config{}
-	action := NewUpdateAction(config, mockResolver, mockInstructionRepo, mockSkillRepo, mockWorkflowRepo, mockStandardRepo)
+	action := NewUpdateAction(config, mockResolver, mockInstructionRepo, mockSkillRepo, mockWorkflowRepo, mockMcpRepo, mockStandardRepo)
 
 	err := action.Run()
 
@@ -190,12 +226,13 @@ func TestUpdateActionRun_WhenEmptyConfig_ThenClearsAllRepos(t *testing.T) {
 }
 
 func TestUpdateActionRun_WhenInstructionsConfigured_ThenUpdatesInstructionRepo(t *testing.T) {
-	t.Parallel()
+	t.Setenv("BRIEFKIT_BINARY_PATH", "/test/bin/projectkit")
 
 	mockResolver := sourceAPI.NewMockResolver(t)
 	mockInstructionRepo := instructionAPI.NewMockRepository(t)
 	mockSkillRepo := skillAPI.NewMockRepository(t)
 	mockWorkflowRepo := workflowAPI.NewMockRepository(t)
+	mockMcpRepo := mcpAPI.NewMockRepository(t)
 	mockStandardRepo := standardAPI.NewMockRepository(t)
 
 	fs := validInstructionFs(t, "test-category", []string{"Rule one"})
@@ -206,9 +243,11 @@ func TestUpdateActionRun_WhenInstructionsConfigured_ThenUpdatesInstructionRepo(t
 	mockInstructionRepo.EXPECT().AddInstructions(mock.AnythingOfType("instruction.Instructions")).Return(nil)
 	mockSkillRepo.EXPECT().RemoveAll().Return(nil)
 	mockWorkflowRepo.EXPECT().RemoveAllWorkflows().Return(nil)
+	mockMcpRepo.EXPECT().RemoveAll().Return(nil)
+	mockMcpRepo.EXPECT().AddMCPServer(mock.AnythingOfType("mcp.MCPServer")).Return(nil)
 
 	config := configWithInstructions("file://./instructions")
-	action := NewUpdateAction(config, mockResolver, mockInstructionRepo, mockSkillRepo, mockWorkflowRepo, mockStandardRepo)
+	action := NewUpdateAction(config, mockResolver, mockInstructionRepo, mockSkillRepo, mockWorkflowRepo, mockMcpRepo, mockStandardRepo)
 
 	err := action.Run()
 
@@ -216,12 +255,13 @@ func TestUpdateActionRun_WhenInstructionsConfigured_ThenUpdatesInstructionRepo(t
 }
 
 func TestUpdateActionRun_WhenSkillsConfigured_ThenUpdatesSkillRepo(t *testing.T) {
-	t.Parallel()
+	t.Setenv("BRIEFKIT_BINARY_PATH", "/test/bin/projectkit")
 
 	mockResolver := sourceAPI.NewMockResolver(t)
 	mockInstructionRepo := instructionAPI.NewMockRepository(t)
 	mockSkillRepo := skillAPI.NewMockRepository(t)
 	mockWorkflowRepo := workflowAPI.NewMockRepository(t)
+	mockMcpRepo := mcpAPI.NewMockRepository(t)
 	mockStandardRepo := standardAPI.NewMockRepository(t)
 
 	fs := validSkillFs(t, "test-skill", "Test skill", "Test instructions")
@@ -232,9 +272,11 @@ func TestUpdateActionRun_WhenSkillsConfigured_ThenUpdatesSkillRepo(t *testing.T)
 	mockSkillRepo.EXPECT().RemoveAll().Return(nil)
 	mockSkillRepo.EXPECT().AddSkill(mock.AnythingOfType("skill.Skill")).Return(nil)
 	mockWorkflowRepo.EXPECT().RemoveAllWorkflows().Return(nil)
+	mockMcpRepo.EXPECT().RemoveAll().Return(nil)
+	mockMcpRepo.EXPECT().AddMCPServer(mock.AnythingOfType("mcp.MCPServer")).Return(nil)
 
 	config := configWithSkills("file://./skills")
-	action := NewUpdateAction(config, mockResolver, mockInstructionRepo, mockSkillRepo, mockWorkflowRepo, mockStandardRepo)
+	action := NewUpdateAction(config, mockResolver, mockInstructionRepo, mockSkillRepo, mockWorkflowRepo, mockMcpRepo, mockStandardRepo)
 
 	err := action.Run()
 
@@ -242,12 +284,13 @@ func TestUpdateActionRun_WhenSkillsConfigured_ThenUpdatesSkillRepo(t *testing.T)
 }
 
 func TestUpdateActionRun_WhenWorkflowsConfigured_ThenUpdatesWorkflowRepo(t *testing.T) {
-	t.Parallel()
+	t.Setenv("BRIEFKIT_BINARY_PATH", "/test/bin/projectkit")
 
 	mockResolver := sourceAPI.NewMockResolver(t)
 	mockInstructionRepo := instructionAPI.NewMockRepository(t)
 	mockSkillRepo := skillAPI.NewMockRepository(t)
 	mockWorkflowRepo := workflowAPI.NewMockRepository(t)
+	mockMcpRepo := mcpAPI.NewMockRepository(t)
 	mockStandardRepo := standardAPI.NewMockRepository(t)
 
 	fs := validWorkflowFs(t, "test-workflow", "Test Workflow", "Test description")
@@ -258,9 +301,39 @@ func TestUpdateActionRun_WhenWorkflowsConfigured_ThenUpdatesWorkflowRepo(t *test
 	mockSkillRepo.EXPECT().RemoveAll().Return(nil)
 	mockWorkflowRepo.EXPECT().RemoveAllWorkflows().Return(nil)
 	mockWorkflowRepo.EXPECT().AddWorkflow(mock.AnythingOfType("workflow.Workflow")).Return(nil)
+	mockMcpRepo.EXPECT().RemoveAll().Return(nil)
+	mockMcpRepo.EXPECT().AddMCPServer(mock.AnythingOfType("mcp.MCPServer")).Return(nil)
 
 	config := configWithWorkflows("file://./workflows")
-	action := NewUpdateAction(config, mockResolver, mockInstructionRepo, mockSkillRepo, mockWorkflowRepo, mockStandardRepo)
+	action := NewUpdateAction(config, mockResolver, mockInstructionRepo, mockSkillRepo, mockWorkflowRepo, mockMcpRepo, mockStandardRepo)
+
+	err := action.Run()
+
+	require.NoError(t, err)
+}
+
+func TestUpdateActionRun_WhenMCPServersConfigured_ThenUpdatesMCPRepo(t *testing.T) {
+	t.Setenv("BRIEFKIT_BINARY_PATH", "/test/bin/projectkit")
+
+	mockResolver := sourceAPI.NewMockResolver(t)
+	mockInstructionRepo := instructionAPI.NewMockRepository(t)
+	mockSkillRepo := skillAPI.NewMockRepository(t)
+	mockWorkflowRepo := workflowAPI.NewMockRepository(t)
+	mockMcpRepo := mcpAPI.NewMockRepository(t)
+	mockStandardRepo := standardAPI.NewMockRepository(t)
+
+	fs := validMCPServerFs(t, "test-server", "/usr/local/bin/test")
+	mockResolver.EXPECT().Resolve("file://./mcp").Return(fs, nil)
+
+	mockStandardRepo.EXPECT().RemoveAll().Return(nil)
+	mockInstructionRepo.EXPECT().RemoveAll().Return(nil)
+	mockSkillRepo.EXPECT().RemoveAll().Return(nil)
+	mockWorkflowRepo.EXPECT().RemoveAllWorkflows().Return(nil)
+	mockMcpRepo.EXPECT().RemoveAll().Return(nil)
+	mockMcpRepo.EXPECT().AddMCPServer(mock.AnythingOfType("mcp.MCPServer")).Times(2).Return(nil)
+
+	config := configWithMCP("file://./mcp")
+	action := NewUpdateAction(config, mockResolver, mockInstructionRepo, mockSkillRepo, mockWorkflowRepo, mockMcpRepo, mockStandardRepo)
 
 	err := action.Run()
 
@@ -268,12 +341,13 @@ func TestUpdateActionRun_WhenWorkflowsConfigured_ThenUpdatesWorkflowRepo(t *test
 }
 
 func TestUpdateActionRun_WhenStandardsConfigured_ThenUpdatesStandardRepo(t *testing.T) {
-	t.Parallel()
+	t.Setenv("BRIEFKIT_BINARY_PATH", "/test/bin/projectkit")
 
 	mockResolver := sourceAPI.NewMockResolver(t)
 	mockInstructionRepo := instructionAPI.NewMockRepository(t)
 	mockSkillRepo := skillAPI.NewMockRepository(t)
 	mockWorkflowRepo := workflowAPI.NewMockRepository(t)
+	mockMcpRepo := mcpAPI.NewMockRepository(t)
 	mockStandardRepo := standardAPI.NewMockRepository(t)
 
 	fs := validStandardFsForUpdate(t, "Test Standard", "1.0.0")
@@ -284,9 +358,11 @@ func TestUpdateActionRun_WhenStandardsConfigured_ThenUpdatesStandardRepo(t *test
 	mockInstructionRepo.EXPECT().RemoveAll().Return(nil)
 	mockSkillRepo.EXPECT().RemoveAll().Return(nil)
 	mockWorkflowRepo.EXPECT().RemoveAllWorkflows().Return(nil)
+	mockMcpRepo.EXPECT().RemoveAll().Return(nil)
+	mockMcpRepo.EXPECT().AddMCPServer(mock.AnythingOfType("mcp.MCPServer")).Return(nil)
 
 	config := configWithStandards("file://./standards")
-	action := NewUpdateAction(config, mockResolver, mockInstructionRepo, mockSkillRepo, mockWorkflowRepo, mockStandardRepo)
+	action := NewUpdateAction(config, mockResolver, mockInstructionRepo, mockSkillRepo, mockWorkflowRepo, mockMcpRepo, mockStandardRepo)
 
 	err := action.Run()
 
@@ -300,13 +376,14 @@ func TestUpdateActionRun_WhenLoadInstructionsFails_ThenReturnsError(t *testing.T
 	mockInstructionRepo := instructionAPI.NewMockRepository(t)
 	mockSkillRepo := skillAPI.NewMockRepository(t)
 	mockWorkflowRepo := workflowAPI.NewMockRepository(t)
+	mockMcpRepo := mcpAPI.NewMockRepository(t)
 	mockStandardRepo := standardAPI.NewMockRepository(t)
 
 	loadErr := errors.New("load instructions error")
 	mockResolver.EXPECT().Resolve("file://./instructions").Return(nil, loadErr)
 
 	config := configWithInstructions("file://./instructions")
-	action := NewUpdateAction(config, mockResolver, mockInstructionRepo, mockSkillRepo, mockWorkflowRepo, mockStandardRepo)
+	action := NewUpdateAction(config, mockResolver, mockInstructionRepo, mockSkillRepo, mockWorkflowRepo, mockMcpRepo, mockStandardRepo)
 
 	err := action.Run()
 
@@ -322,13 +399,14 @@ func TestUpdateActionRun_WhenLoadSkillsFails_ThenReturnsError(t *testing.T) {
 	mockInstructionRepo := instructionAPI.NewMockRepository(t)
 	mockSkillRepo := skillAPI.NewMockRepository(t)
 	mockWorkflowRepo := workflowAPI.NewMockRepository(t)
+	mockMcpRepo := mcpAPI.NewMockRepository(t)
 	mockStandardRepo := standardAPI.NewMockRepository(t)
 
 	loadErr := errors.New("load skills error")
 	mockResolver.EXPECT().Resolve("file://./skills").Return(nil, loadErr)
 
 	config := configWithSkills("file://./skills")
-	action := NewUpdateAction(config, mockResolver, mockInstructionRepo, mockSkillRepo, mockWorkflowRepo, mockStandardRepo)
+	action := NewUpdateAction(config, mockResolver, mockInstructionRepo, mockSkillRepo, mockWorkflowRepo, mockMcpRepo, mockStandardRepo)
 
 	err := action.Run()
 
@@ -344,13 +422,14 @@ func TestUpdateActionRun_WhenLoadWorkflowsFails_ThenReturnsError(t *testing.T) {
 	mockInstructionRepo := instructionAPI.NewMockRepository(t)
 	mockSkillRepo := skillAPI.NewMockRepository(t)
 	mockWorkflowRepo := workflowAPI.NewMockRepository(t)
+	mockMcpRepo := mcpAPI.NewMockRepository(t)
 	mockStandardRepo := standardAPI.NewMockRepository(t)
 
 	loadErr := errors.New("load workflows error")
 	mockResolver.EXPECT().Resolve("file://./workflows").Return(nil, loadErr)
 
 	config := configWithWorkflows("file://./workflows")
-	action := NewUpdateAction(config, mockResolver, mockInstructionRepo, mockSkillRepo, mockWorkflowRepo, mockStandardRepo)
+	action := NewUpdateAction(config, mockResolver, mockInstructionRepo, mockSkillRepo, mockWorkflowRepo, mockMcpRepo, mockStandardRepo)
 
 	err := action.Run()
 
@@ -366,13 +445,14 @@ func TestUpdateActionRun_WhenLoadStandardsFails_ThenReturnsError(t *testing.T) {
 	mockInstructionRepo := instructionAPI.NewMockRepository(t)
 	mockSkillRepo := skillAPI.NewMockRepository(t)
 	mockWorkflowRepo := workflowAPI.NewMockRepository(t)
+	mockMcpRepo := mcpAPI.NewMockRepository(t)
 	mockStandardRepo := standardAPI.NewMockRepository(t)
 
 	loadErr := errors.New("load standards error")
 	mockResolver.EXPECT().Resolve("file://./standards").Return(nil, loadErr)
 
 	config := configWithStandards("file://./standards")
-	action := NewUpdateAction(config, mockResolver, mockInstructionRepo, mockSkillRepo, mockWorkflowRepo, mockStandardRepo)
+	action := NewUpdateAction(config, mockResolver, mockInstructionRepo, mockSkillRepo, mockWorkflowRepo, mockMcpRepo, mockStandardRepo)
 
 	err := action.Run()
 
@@ -388,13 +468,14 @@ func TestUpdateActionRun_WhenLoadRulebooksFails_ThenReturnsError(t *testing.T) {
 	mockInstructionRepo := instructionAPI.NewMockRepository(t)
 	mockSkillRepo := skillAPI.NewMockRepository(t)
 	mockWorkflowRepo := workflowAPI.NewMockRepository(t)
+	mockMcpRepo := mcpAPI.NewMockRepository(t)
 	mockStandardRepo := standardAPI.NewMockRepository(t)
 
 	loadErr := errors.New("load rulebooks error")
 	mockResolver.EXPECT().Resolve("file://./rulebook").Return(nil, loadErr)
 
 	config := configWithRulebook("file://./rulebook")
-	action := NewUpdateAction(config, mockResolver, mockInstructionRepo, mockSkillRepo, mockWorkflowRepo, mockStandardRepo)
+	action := NewUpdateAction(config, mockResolver, mockInstructionRepo, mockSkillRepo, mockWorkflowRepo, mockMcpRepo, mockStandardRepo)
 
 	err := action.Run()
 
@@ -410,13 +491,14 @@ func TestUpdateActionRun_WhenStandardRemoveAllFails_ThenReturnsError(t *testing.
 	mockInstructionRepo := instructionAPI.NewMockRepository(t)
 	mockSkillRepo := skillAPI.NewMockRepository(t)
 	mockWorkflowRepo := workflowAPI.NewMockRepository(t)
+	mockMcpRepo := mcpAPI.NewMockRepository(t)
 	mockStandardRepo := standardAPI.NewMockRepository(t)
 
 	removeErr := errors.New("remove all standards error")
 	mockStandardRepo.EXPECT().RemoveAll().Return(removeErr)
 
 	config := projectAPI.Config{}
-	action := NewUpdateAction(config, mockResolver, mockInstructionRepo, mockSkillRepo, mockWorkflowRepo, mockStandardRepo)
+	action := NewUpdateAction(config, mockResolver, mockInstructionRepo, mockSkillRepo, mockWorkflowRepo, mockMcpRepo, mockStandardRepo)
 
 	err := action.Run()
 
@@ -432,6 +514,7 @@ func TestUpdateActionRun_WhenStandardAddFails_ThenReturnsError(t *testing.T) {
 	mockInstructionRepo := instructionAPI.NewMockRepository(t)
 	mockSkillRepo := skillAPI.NewMockRepository(t)
 	mockWorkflowRepo := workflowAPI.NewMockRepository(t)
+	mockMcpRepo := mcpAPI.NewMockRepository(t)
 	mockStandardRepo := standardAPI.NewMockRepository(t)
 
 	fs := validStandardFsForUpdate(t, "Test Standard", "1.0.0")
@@ -442,7 +525,7 @@ func TestUpdateActionRun_WhenStandardAddFails_ThenReturnsError(t *testing.T) {
 	mockStandardRepo.EXPECT().AddStandard(mock.AnythingOfType("standard.Standard")).Return(addErr)
 
 	config := configWithStandards("file://./standards")
-	action := NewUpdateAction(config, mockResolver, mockInstructionRepo, mockSkillRepo, mockWorkflowRepo, mockStandardRepo)
+	action := NewUpdateAction(config, mockResolver, mockInstructionRepo, mockSkillRepo, mockWorkflowRepo, mockMcpRepo, mockStandardRepo)
 
 	err := action.Run()
 
@@ -458,6 +541,7 @@ func TestUpdateActionRun_WhenInstructionRemoveAllFails_ThenReturnsError(t *testi
 	mockInstructionRepo := instructionAPI.NewMockRepository(t)
 	mockSkillRepo := skillAPI.NewMockRepository(t)
 	mockWorkflowRepo := workflowAPI.NewMockRepository(t)
+	mockMcpRepo := mcpAPI.NewMockRepository(t)
 	mockStandardRepo := standardAPI.NewMockRepository(t)
 
 	removeErr := errors.New("remove all instructions error")
@@ -465,7 +549,7 @@ func TestUpdateActionRun_WhenInstructionRemoveAllFails_ThenReturnsError(t *testi
 	mockInstructionRepo.EXPECT().RemoveAll().Return(removeErr)
 
 	config := projectAPI.Config{}
-	action := NewUpdateAction(config, mockResolver, mockInstructionRepo, mockSkillRepo, mockWorkflowRepo, mockStandardRepo)
+	action := NewUpdateAction(config, mockResolver, mockInstructionRepo, mockSkillRepo, mockWorkflowRepo, mockMcpRepo, mockStandardRepo)
 
 	err := action.Run()
 
@@ -481,6 +565,7 @@ func TestUpdateActionRun_WhenInstructionAddFails_ThenReturnsError(t *testing.T) 
 	mockInstructionRepo := instructionAPI.NewMockRepository(t)
 	mockSkillRepo := skillAPI.NewMockRepository(t)
 	mockWorkflowRepo := workflowAPI.NewMockRepository(t)
+	mockMcpRepo := mcpAPI.NewMockRepository(t)
 	mockStandardRepo := standardAPI.NewMockRepository(t)
 
 	fs := validInstructionFs(t, "test-category", []string{"Rule one"})
@@ -492,7 +577,7 @@ func TestUpdateActionRun_WhenInstructionAddFails_ThenReturnsError(t *testing.T) 
 	mockInstructionRepo.EXPECT().AddInstructions(mock.AnythingOfType("instruction.Instructions")).Return(addErr)
 
 	config := configWithInstructions("file://./instructions")
-	action := NewUpdateAction(config, mockResolver, mockInstructionRepo, mockSkillRepo, mockWorkflowRepo, mockStandardRepo)
+	action := NewUpdateAction(config, mockResolver, mockInstructionRepo, mockSkillRepo, mockWorkflowRepo, mockMcpRepo, mockStandardRepo)
 
 	err := action.Run()
 
@@ -508,6 +593,7 @@ func TestUpdateActionRun_WhenSkillRemoveAllFails_ThenReturnsError(t *testing.T) 
 	mockInstructionRepo := instructionAPI.NewMockRepository(t)
 	mockSkillRepo := skillAPI.NewMockRepository(t)
 	mockWorkflowRepo := workflowAPI.NewMockRepository(t)
+	mockMcpRepo := mcpAPI.NewMockRepository(t)
 	mockStandardRepo := standardAPI.NewMockRepository(t)
 
 	removeErr := errors.New("remove all skills error")
@@ -516,7 +602,7 @@ func TestUpdateActionRun_WhenSkillRemoveAllFails_ThenReturnsError(t *testing.T) 
 	mockSkillRepo.EXPECT().RemoveAll().Return(removeErr)
 
 	config := projectAPI.Config{}
-	action := NewUpdateAction(config, mockResolver, mockInstructionRepo, mockSkillRepo, mockWorkflowRepo, mockStandardRepo)
+	action := NewUpdateAction(config, mockResolver, mockInstructionRepo, mockSkillRepo, mockWorkflowRepo, mockMcpRepo, mockStandardRepo)
 
 	err := action.Run()
 
@@ -532,6 +618,7 @@ func TestUpdateActionRun_WhenSkillAddFails_ThenReturnsError(t *testing.T) {
 	mockInstructionRepo := instructionAPI.NewMockRepository(t)
 	mockSkillRepo := skillAPI.NewMockRepository(t)
 	mockWorkflowRepo := workflowAPI.NewMockRepository(t)
+	mockMcpRepo := mcpAPI.NewMockRepository(t)
 	mockStandardRepo := standardAPI.NewMockRepository(t)
 
 	fs := validSkillFs(t, "test-skill", "Test skill", "Test instructions")
@@ -544,7 +631,7 @@ func TestUpdateActionRun_WhenSkillAddFails_ThenReturnsError(t *testing.T) {
 	mockSkillRepo.EXPECT().AddSkill(mock.AnythingOfType("skill.Skill")).Return(addErr)
 
 	config := configWithSkills("file://./skills")
-	action := NewUpdateAction(config, mockResolver, mockInstructionRepo, mockSkillRepo, mockWorkflowRepo, mockStandardRepo)
+	action := NewUpdateAction(config, mockResolver, mockInstructionRepo, mockSkillRepo, mockWorkflowRepo, mockMcpRepo, mockStandardRepo)
 
 	err := action.Run()
 
@@ -560,6 +647,7 @@ func TestUpdateActionRun_WhenWorkflowRemoveAllFails_ThenReturnsError(t *testing.
 	mockInstructionRepo := instructionAPI.NewMockRepository(t)
 	mockSkillRepo := skillAPI.NewMockRepository(t)
 	mockWorkflowRepo := workflowAPI.NewMockRepository(t)
+	mockMcpRepo := mcpAPI.NewMockRepository(t)
 	mockStandardRepo := standardAPI.NewMockRepository(t)
 
 	removeErr := errors.New("remove all workflows error")
@@ -569,7 +657,7 @@ func TestUpdateActionRun_WhenWorkflowRemoveAllFails_ThenReturnsError(t *testing.
 	mockWorkflowRepo.EXPECT().RemoveAllWorkflows().Return(removeErr)
 
 	config := projectAPI.Config{}
-	action := NewUpdateAction(config, mockResolver, mockInstructionRepo, mockSkillRepo, mockWorkflowRepo, mockStandardRepo)
+	action := NewUpdateAction(config, mockResolver, mockInstructionRepo, mockSkillRepo, mockWorkflowRepo, mockMcpRepo, mockStandardRepo)
 
 	err := action.Run()
 
@@ -585,6 +673,7 @@ func TestUpdateActionRun_WhenWorkflowAddFails_ThenReturnsError(t *testing.T) {
 	mockInstructionRepo := instructionAPI.NewMockRepository(t)
 	mockSkillRepo := skillAPI.NewMockRepository(t)
 	mockWorkflowRepo := workflowAPI.NewMockRepository(t)
+	mockMcpRepo := mcpAPI.NewMockRepository(t)
 	mockStandardRepo := standardAPI.NewMockRepository(t)
 
 	fs := validWorkflowFs(t, "test-workflow", "Test Workflow", "Test description")
@@ -598,7 +687,7 @@ func TestUpdateActionRun_WhenWorkflowAddFails_ThenReturnsError(t *testing.T) {
 	mockWorkflowRepo.EXPECT().AddWorkflow(mock.AnythingOfType("workflow.Workflow")).Return(addErr)
 
 	config := configWithWorkflows("file://./workflows")
-	action := NewUpdateAction(config, mockResolver, mockInstructionRepo, mockSkillRepo, mockWorkflowRepo, mockStandardRepo)
+	action := NewUpdateAction(config, mockResolver, mockInstructionRepo, mockSkillRepo, mockWorkflowRepo, mockMcpRepo, mockStandardRepo)
 
 	err := action.Run()
 
@@ -656,6 +745,7 @@ steps:
 
 	require.NoError(t, fs.MkdirAll("/docs/standards", 0755))
 	standardContent := `metadata:
+  id: test-standard
   name: test-standard
   version: 1.0.0
   tags:
@@ -688,12 +778,13 @@ examples:
 }
 
 func TestUpdateActionRun_WhenRulebookConfigured_ThenMergesAllContent(t *testing.T) {
-	t.Parallel()
+	t.Setenv("BRIEFKIT_BINARY_PATH", "/test/bin/projectkit")
 
 	mockResolver := sourceAPI.NewMockResolver(t)
 	mockInstructionRepo := instructionAPI.NewMockRepository(t)
 	mockSkillRepo := skillAPI.NewMockRepository(t)
 	mockWorkflowRepo := workflowAPI.NewMockRepository(t)
+	mockMcpRepo := mcpAPI.NewMockRepository(t)
 	mockStandardRepo := standardAPI.NewMockRepository(t)
 
 	fs := validRulebookFs(t)
@@ -707,9 +798,53 @@ func TestUpdateActionRun_WhenRulebookConfigured_ThenMergesAllContent(t *testing.
 	mockSkillRepo.EXPECT().AddSkill(mock.AnythingOfType("skill.Skill")).Return(nil)
 	mockWorkflowRepo.EXPECT().RemoveAllWorkflows().Return(nil)
 	mockWorkflowRepo.EXPECT().AddWorkflow(mock.AnythingOfType("workflow.Workflow")).Return(nil)
+	mockMcpRepo.EXPECT().RemoveAll().Return(nil)
+	mockMcpRepo.EXPECT().AddMCPServer(mock.AnythingOfType("mcp.MCPServer")).Return(nil)
 
 	config := configWithRulebook("file://./rulebook")
-	action := NewUpdateAction(config, mockResolver, mockInstructionRepo, mockSkillRepo, mockWorkflowRepo, mockStandardRepo)
+	action := NewUpdateAction(config, mockResolver, mockInstructionRepo, mockSkillRepo, mockWorkflowRepo, mockMcpRepo, mockStandardRepo)
+
+	err := action.Run()
+
+	require.NoError(t, err)
+}
+
+func TestUpdateActionRun_WhenEmptyConfig_ThenAddsProjectkitMCPServer(t *testing.T) {
+	t.Setenv("BRIEFKIT_BINARY_PATH", "/test/bin/projectkit")
+
+	mockResolver := sourceAPI.NewMockResolver(t)
+	mockInstructionRepo := instructionAPI.NewMockRepository(t)
+	mockSkillRepo := skillAPI.NewMockRepository(t)
+	mockWorkflowRepo := workflowAPI.NewMockRepository(t)
+	mockMcpRepo := mcpAPI.NewMockRepository(t)
+	mockStandardRepo := standardAPI.NewMockRepository(t)
+
+	mockStandardRepo.EXPECT().RemoveAll().Return(nil)
+	mockInstructionRepo.EXPECT().RemoveAll().Return(nil)
+	mockSkillRepo.EXPECT().RemoveAll().Return(nil)
+	mockWorkflowRepo.EXPECT().RemoveAllWorkflows().Return(nil)
+	mockMcpRepo.EXPECT().RemoveAll().Return(nil)
+	mockMcpRepo.EXPECT().AddMCPServer(mock.MatchedBy(func(server mcpAPI.MCPServer) bool {
+		if server.Name != "projectkit" {
+			return false
+		}
+		if server.STDIO == nil {
+			return false
+		}
+		if server.STDIO.ExecutablePath != "/test/bin/projectkit" {
+			return false
+		}
+		if len(server.STDIO.Arguments) != 2 {
+			return false
+		}
+		if server.STDIO.Arguments[0] != "mcp" || server.STDIO.Arguments[1] != "server" {
+			return false
+		}
+		return true
+	})).Return(nil)
+
+	config := projectAPI.Config{}
+	action := NewUpdateAction(config, mockResolver, mockInstructionRepo, mockSkillRepo, mockWorkflowRepo, mockMcpRepo, mockStandardRepo)
 
 	err := action.Run()
 

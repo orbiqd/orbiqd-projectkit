@@ -12,6 +12,7 @@ import (
 	"github.com/orbiqd/orbiqd-projectkit/internal/pkg/agent/claude"
 	"github.com/orbiqd/orbiqd-projectkit/internal/pkg/agent/codex"
 	"github.com/orbiqd/orbiqd-projectkit/internal/pkg/ai/instruction"
+	mcpInternal "github.com/orbiqd/orbiqd-projectkit/internal/pkg/ai/mcp"
 	"github.com/orbiqd/orbiqd-projectkit/internal/pkg/ai/skill"
 	"github.com/orbiqd/orbiqd-projectkit/internal/pkg/ai/workflow"
 	"github.com/orbiqd/orbiqd-projectkit/internal/pkg/doc/standard"
@@ -106,6 +107,12 @@ func main() {
 	err = runtime.BindSingletonProvider(workflow.NewFsRepositoryProvider())
 	if err != nil {
 		runtime.Fatalf("bind workflow repository provider: %v", err)
+		return
+	}
+
+	err = runtime.BindSingletonProvider(mcpInternal.NewFsRepositoryProvider())
+	if err != nil {
+		runtime.Fatalf("bind mcp repository provider: %v", err)
 		return
 	}
 

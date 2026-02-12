@@ -6,6 +6,7 @@ import (
 
 	"github.com/orbiqd/orbiqd-projectkit/pkg/ai"
 	"github.com/orbiqd/orbiqd-projectkit/pkg/ai/instruction"
+	"github.com/orbiqd/orbiqd-projectkit/pkg/ai/mcp"
 	"github.com/orbiqd/orbiqd-projectkit/pkg/ai/skill"
 	"github.com/orbiqd/orbiqd-projectkit/pkg/ai/workflow"
 	"github.com/orbiqd/orbiqd-projectkit/pkg/doc"
@@ -61,6 +62,17 @@ func TestLoader_loadMetadata(t *testing.T) {
   skill:
     sources:
       - uri: rulebook://ai/skills`
+				_ = afero.WriteFile(fs, rulebookFileName, []byte(content), 0644)
+			},
+			wantErr: nil,
+		},
+		{
+			name: "valid metadata with mcp sources",
+			setupFs: func(fs afero.Fs) {
+				content := `ai:
+  mcp:
+    sources:
+      - uri: rulebook://ai/mcp`
 				_ = afero.WriteFile(fs, rulebookFileName, []byte(content), 0644)
 			},
 			wantErr: nil,
@@ -304,6 +316,30 @@ func TestLoader_validateMetadata(t *testing.T) {
 				AI: &ai.Config{
 					Instruction: &instruction.Config{
 						Sources: []instruction.SourceConfig{},
+					},
+				},
+			},
+			wantErr: ErrValidationFailed,
+		},
+		{
+			name: "valid mcp config",
+			metadata: Metadata{
+				AI: &ai.Config{
+					MCP: &mcp.Config{
+						Sources: []mcp.SourceConfig{
+							{URI: "rulebook://ai/mcp"},
+						},
+					},
+				},
+			},
+			wantErr: nil,
+		},
+		{
+			name: "invalid mcp - empty sources",
+			metadata: Metadata{
+				AI: &ai.Config{
+					MCP: &mcp.Config{
+						Sources: []mcp.SourceConfig{},
 					},
 				},
 			},
@@ -824,6 +860,59 @@ steps:
 			},
 		},
 		{
+			name: "only mcp servers",
+			setupFs: func(fs afero.Fs) {
+				_ = afero.WriteFile(fs, rulebookFileName, []byte(`ai:
+  mcp:
+    sources:
+      - uri: rulebook://ai/mcp`), 0644)
+
+				_ = fs.MkdirAll("/ai/mcp", 0755)
+				_ = afero.WriteFile(fs, "/ai/mcp/test-server.yaml", []byte(`name: "test-server"
+stdio:
+  executablePath: "/usr/local/bin/test"`), 0644)
+			},
+			wantErr: false,
+			validate: func(t *testing.T, rb *Rulebook) {
+				require.NotNil(t, rb)
+				assert.Empty(t, rb.AI.Instructions)
+				assert.Empty(t, rb.AI.Skills)
+				assert.Empty(t, rb.AI.Workflows)
+				assert.Len(t, rb.AI.MCPServers, 1)
+				assert.Equal(t, "test-server", rb.AI.MCPServers[0].Name)
+			},
+		},
+		{
+			name: "mcp URI resolution fails",
+			setupFs: func(fs afero.Fs) {
+				_ = afero.WriteFile(fs, rulebookFileName, []byte(`ai:
+  mcp:
+    sources:
+      - uri: http://invalid/scheme`), 0644)
+			},
+			wantErr:    true,
+			errContain: "ai mcp: resolve source path",
+			validate: func(t *testing.T, rb *Rulebook) {
+				assert.Nil(t, rb)
+			},
+		},
+		{
+			name: "mcp loading fails",
+			setupFs: func(fs afero.Fs) {
+				_ = afero.WriteFile(fs, rulebookFileName, []byte(`ai:
+  mcp:
+    sources:
+      - uri: rulebook://ai/mcp`), 0644)
+
+				_ = fs.MkdirAll("/ai/mcp", 0755)
+			},
+			wantErr:    true,
+			errContain: "ai mcp: load ai mcp servers",
+			validate: func(t *testing.T, rb *Rulebook) {
+				assert.Nil(t, rb)
+			},
+		},
+		{
 			name: "workflow URI resolution fails",
 			setupFs: func(fs afero.Fs) {
 				_ = afero.WriteFile(fs, rulebookFileName, []byte(`ai:
@@ -866,6 +955,9 @@ steps:
   workflow:
     sources:
       - uri: rulebook://ai/workflows
+  mcp:
+    sources:
+      - uri: rulebook://ai/mcp
 doc:
   standard:
     sources:
@@ -893,6 +985,11 @@ steps:
     description: First step
     instructions:
       - Do something`), 0644)
+
+				_ = fs.MkdirAll("/ai/mcp", 0755)
+				_ = afero.WriteFile(fs, "/ai/mcp/test-server.yaml", []byte(`name: "test-server"
+stdio:
+  executablePath: "/usr/local/bin/test"`), 0644)
 
 				_ = fs.MkdirAll("/docs/standards", 0755)
 				_ = afero.WriteFile(fs, "/docs/standards/logging.yaml", []byte(`metadata:
@@ -927,6 +1024,7 @@ examples:
 				assert.Len(t, rb.AI.Instructions, 1)
 				assert.Len(t, rb.AI.Skills, 1)
 				assert.Len(t, rb.AI.Workflows, 1)
+				assert.Len(t, rb.AI.MCPServers, 1)
 				assert.Len(t, rb.Doc.Standards, 1)
 				assert.Equal(t, workflow.WorkflowId("test-workflow"), rb.AI.Workflows[0].Metadata.ID)
 				assert.Equal(t, "logging", rb.Doc.Standards[0].Metadata.Name)

@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-playground/validator/v10"
 	instructionAPI "github.com/orbiqd/orbiqd-projectkit/pkg/ai/instruction"
+	mcpAPI "github.com/orbiqd/orbiqd-projectkit/pkg/ai/mcp"
 	skillAPI "github.com/orbiqd/orbiqd-projectkit/pkg/ai/skill"
 	workflowAPI "github.com/orbiqd/orbiqd-projectkit/pkg/ai/workflow"
 	standardAPI "github.com/orbiqd/orbiqd-projectkit/pkg/doc/standard"
@@ -43,6 +44,7 @@ func (loader *Loader) Load() (*Rulebook, error) {
 			Instructions: []instructionAPI.Instructions{},
 			Skills:       []skillAPI.Skill{},
 			Workflows:    []workflowAPI.Workflow{},
+			MCPServers:   []mcpAPI.MCPServer{},
 		},
 		Doc: DocRulebook{
 			Standards: []standardAPI.Standard{},
@@ -100,6 +102,24 @@ func (loader *Loader) Load() (*Rulebook, error) {
 			}
 
 			rulebook.AI.Workflows = append(rulebook.AI.Workflows, aiWorkflows...)
+		}
+	}
+
+	if metadata.AI != nil && metadata.AI.MCP != nil {
+		for _, aiMCPSource := range metadata.AI.MCP.Sources {
+			aiMCPPath, err := loader.resolveSourceUri(aiMCPSource.URI)
+			if err != nil {
+				return nil, fmt.Errorf("ai mcp: resolve source path: %w", err)
+			}
+
+			aiMCPServers, err := mcpAPI.NewLoader(
+				afero.NewBasePathFs(loader.fs, aiMCPPath),
+			).Load()
+			if err != nil {
+				return nil, fmt.Errorf("ai mcp: load ai mcp servers: %w", err)
+			}
+
+			rulebook.AI.MCPServers = append(rulebook.AI.MCPServers, aiMCPServers...)
 		}
 	}
 

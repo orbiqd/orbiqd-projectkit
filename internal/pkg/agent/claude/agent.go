@@ -1,6 +1,7 @@
 package claude
 
 import (
+	"encoding/json"
 	"fmt"
 	"path"
 	"strings"
@@ -21,6 +22,17 @@ const Kind = "claude"
 type Agent struct {
 	options Options
 	rootFs  afero.Fs
+}
+
+type mcpServerEntry struct {
+	Type    string            `json:"type"`
+	Command string            `json:"command"`
+	Args    []string          `json:"args,omitempty"`
+	Env     map[string]string `json:"env,omitempty"`
+}
+
+type mcpConfigFile struct {
+	MCPServers map[string]mcpServerEntry `json:"mcpServers"`
 }
 
 var _ agentAPI.Agent = (*Agent)(nil)
@@ -89,7 +101,40 @@ func (agent *Agent) RebuildSkills(skillRepository skillAPI.Repository) error {
 	return nil
 }
 
-func (agent *Agent) RenderMCPServers(mcpServer mcpAPI.MCPServer) error {
+func (agent *Agent) RenderMCPServers(mcpServers []mcpAPI.MCPServer) error {
+	config := mcpConfigFile{
+		MCPServers: make(map[string]mcpServerEntry),
+	}
+
+	for _, server := range mcpServers {
+		entry := mcpServerEntry{
+			Type:    "stdio",
+			Command: server.STDIO.ExecutablePath,
+		}
+
+		if len(server.STDIO.Arguments) > 0 {
+			entry.Args = server.STDIO.Arguments
+		}
+
+		if len(server.STDIO.EnvironmentVariables) > 0 {
+			entry.Env = server.STDIO.EnvironmentVariables
+		}
+
+		config.MCPServers[server.Name] = entry
+	}
+
+	data, err := json.MarshalIndent(config, "", "  ")
+	if err != nil {
+		return fmt.Errorf("mcp config serialization: %w", err)
+	}
+
+	data = append(data, '\n')
+
+	err = afero.WriteFile(agent.rootFs, agent.options.MCPFileName, data, 0644)
+	if err != nil {
+		return fmt.Errorf("mcp config file write: %w", err)
+	}
+
 	return nil
 }
 
@@ -146,6 +191,7 @@ func (agent *Agent) GitIgnorePatterns() []string {
 	return []string{
 		agent.options.InstructionsFileName,
 		agent.options.ProjectSettingsDirName,
+		agent.options.MCPFileName,
 	}
 }
 

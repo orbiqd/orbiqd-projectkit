@@ -1,12 +1,14 @@
 package claude
 
 import (
+	"encoding/json"
 	"errors"
 	"io/fs"
 	"testing"
 
 	agentAPI "github.com/orbiqd/orbiqd-projectkit/pkg/agent"
 	instructionAPI "github.com/orbiqd/orbiqd-projectkit/pkg/ai/instruction"
+	mcpAPI "github.com/orbiqd/orbiqd-projectkit/pkg/ai/mcp"
 	skillAPI "github.com/orbiqd/orbiqd-projectkit/pkg/ai/skill"
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
@@ -179,12 +181,12 @@ func TestAgent_GitIgnorePatterns_ThenReturnsInstructionsFileName(t *testing.T) {
 		{
 			name:                 "default file name",
 			instructionsFileName: "",
-			expectedPatterns:     []string{"CLAUDE.md", ".claude"},
+			expectedPatterns:     []string{"CLAUDE.md", ".claude", ".mcp.json"},
 		},
 		{
 			name:                 "custom file name",
 			instructionsFileName: "custom-instructions.md",
-			expectedPatterns:     []string{"custom-instructions.md", ".claude"},
+			expectedPatterns:     []string{"custom-instructions.md", ".claude", ".mcp.json"},
 		},
 	}
 
@@ -203,7 +205,7 @@ func TestAgent_GitIgnorePatterns_ThenReturnsInstructionsFileName(t *testing.T) {
 
 			patterns := agent.GitIgnorePatterns()
 
-			require.Len(t, patterns, 2)
+			require.Len(t, patterns, 3)
 			assert.Equal(t, tt.expectedPatterns, patterns)
 		})
 	}
@@ -588,4 +590,228 @@ func TestAgent_GetKind_ThenReturnsClaudeKind(t *testing.T) {
 	kind := agent.GetKind()
 
 	assert.Equal(t, agentAPI.Kind(Kind), kind)
+}
+
+func TestAgent_RenderMCPServers_WhenNoServers_ThenWritesEmptyMCPServers(t *testing.T) {
+	t.Parallel()
+
+	fs := afero.NewMemMapFs()
+	agent := NewAgent(Options{}, fs)
+
+	err := agent.RenderMCPServers([]mcpAPI.MCPServer{})
+	require.NoError(t, err)
+
+	content, err := afero.ReadFile(fs, ".mcp.json")
+	require.NoError(t, err)
+
+	var config mcpConfigFile
+	err = json.Unmarshal(content, &config)
+	require.NoError(t, err)
+
+	assert.NotNil(t, config.MCPServers)
+	assert.Empty(t, config.MCPServers)
+}
+
+func TestAgent_RenderMCPServers_WhenSingleServer_ThenWritesCorrectJSON(t *testing.T) {
+	t.Parallel()
+
+	fs := afero.NewMemMapFs()
+	agent := NewAgent(Options{}, fs)
+
+	servers := []mcpAPI.MCPServer{
+		{
+			Name: "test-server",
+			STDIO: &mcpAPI.STDIOMCPServer{
+				ExecutablePath:       "/usr/bin/test",
+				Arguments:            []string{"--arg1", "--arg2"},
+				EnvironmentVariables: map[string]string{"KEY": "VALUE"},
+			},
+		},
+	}
+
+	err := agent.RenderMCPServers(servers)
+	require.NoError(t, err)
+
+	content, err := afero.ReadFile(fs, ".mcp.json")
+	require.NoError(t, err)
+
+	var config mcpConfigFile
+	err = json.Unmarshal(content, &config)
+	require.NoError(t, err)
+
+	require.Len(t, config.MCPServers, 1)
+	assert.Contains(t, config.MCPServers, "test-server")
+
+	entry := config.MCPServers["test-server"]
+	assert.Equal(t, "stdio", entry.Type)
+	assert.Equal(t, "/usr/bin/test", entry.Command)
+	assert.Equal(t, []string{"--arg1", "--arg2"}, entry.Args)
+	assert.Equal(t, map[string]string{"KEY": "VALUE"}, entry.Env)
+}
+
+func TestAgent_RenderMCPServers_WhenMultipleServers_ThenWritesAllServers(t *testing.T) {
+	t.Parallel()
+
+	fs := afero.NewMemMapFs()
+	agent := NewAgent(Options{}, fs)
+
+	servers := []mcpAPI.MCPServer{
+		{
+			Name: "server-one",
+			STDIO: &mcpAPI.STDIOMCPServer{
+				ExecutablePath: "/usr/bin/server1",
+				Arguments:      []string{"--config1"},
+			},
+		},
+		{
+			Name: "server-two",
+			STDIO: &mcpAPI.STDIOMCPServer{
+				ExecutablePath: "/usr/bin/server2",
+				Arguments:      []string{"--config2"},
+			},
+		},
+	}
+
+	err := agent.RenderMCPServers(servers)
+	require.NoError(t, err)
+
+	content, err := afero.ReadFile(fs, ".mcp.json")
+	require.NoError(t, err)
+
+	var config mcpConfigFile
+	err = json.Unmarshal(content, &config)
+	require.NoError(t, err)
+
+	require.Len(t, config.MCPServers, 2)
+	assert.Contains(t, config.MCPServers, "server-one")
+	assert.Contains(t, config.MCPServers, "server-two")
+}
+
+func TestAgent_RenderMCPServers_WhenServerWithNoArgsOrEnv_ThenOmitsOptionalFields(t *testing.T) {
+	t.Parallel()
+
+	fs := afero.NewMemMapFs()
+	agent := NewAgent(Options{}, fs)
+
+	servers := []mcpAPI.MCPServer{
+		{
+			Name: "minimal-server",
+			STDIO: &mcpAPI.STDIOMCPServer{
+				ExecutablePath: "/usr/bin/minimal",
+			},
+		},
+	}
+
+	err := agent.RenderMCPServers(servers)
+	require.NoError(t, err)
+
+	content, err := afero.ReadFile(fs, ".mcp.json")
+	require.NoError(t, err)
+
+	var rawConfig map[string]interface{}
+	err = json.Unmarshal(content, &rawConfig)
+	require.NoError(t, err)
+
+	serverMap := rawConfig["mcpServers"].(map[string]interface{})
+	minimalServer := serverMap["minimal-server"].(map[string]interface{})
+
+	assert.Equal(t, "stdio", minimalServer["type"])
+	assert.Equal(t, "/usr/bin/minimal", minimalServer["command"])
+	assert.NotContains(t, minimalServer, "args")
+	assert.NotContains(t, minimalServer, "env")
+}
+
+func TestAgent_RenderMCPServers_WhenCustomMCPFileName_ThenWritesToCustomFile(t *testing.T) {
+	t.Parallel()
+
+	fs := afero.NewMemMapFs()
+	agent := NewAgent(Options{MCPFileName: "custom-mcp.json"}, fs)
+
+	servers := []mcpAPI.MCPServer{
+		{
+			Name: "test-server",
+			STDIO: &mcpAPI.STDIOMCPServer{
+				ExecutablePath: "/usr/bin/test",
+			},
+		},
+	}
+
+	err := agent.RenderMCPServers(servers)
+	require.NoError(t, err)
+
+	content, err := afero.ReadFile(fs, "custom-mcp.json")
+	require.NoError(t, err)
+
+	var config mcpConfigFile
+	err = json.Unmarshal(content, &config)
+	require.NoError(t, err)
+
+	assert.Contains(t, config.MCPServers, "test-server")
+
+	exists, err := afero.Exists(fs, ".mcp.json")
+	require.NoError(t, err)
+	assert.False(t, exists)
+}
+
+func TestAgent_RenderMCPServers_WhenFileSystemFails_ThenReturnsError(t *testing.T) {
+	t.Parallel()
+
+	fs := afero.NewReadOnlyFs(afero.NewMemMapFs())
+	agent := NewAgent(Options{}, fs)
+
+	servers := []mcpAPI.MCPServer{
+		{
+			Name: "test-server",
+			STDIO: &mcpAPI.STDIOMCPServer{
+				ExecutablePath: "/usr/bin/test",
+			},
+		},
+	}
+
+	err := agent.RenderMCPServers(servers)
+
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "mcp config file write")
+}
+
+func TestAgent_RenderMCPServers_WhenCalledTwice_ThenOverwritesPreviousContent(t *testing.T) {
+	t.Parallel()
+
+	fs := afero.NewMemMapFs()
+	agent := NewAgent(Options{}, fs)
+
+	firstServers := []mcpAPI.MCPServer{
+		{
+			Name: "server-one",
+			STDIO: &mcpAPI.STDIOMCPServer{
+				ExecutablePath: "/usr/bin/server1",
+			},
+		},
+	}
+
+	err := agent.RenderMCPServers(firstServers)
+	require.NoError(t, err)
+
+	secondServers := []mcpAPI.MCPServer{
+		{
+			Name: "server-two",
+			STDIO: &mcpAPI.STDIOMCPServer{
+				ExecutablePath: "/usr/bin/server2",
+			},
+		},
+	}
+
+	err = agent.RenderMCPServers(secondServers)
+	require.NoError(t, err)
+
+	content, err := afero.ReadFile(fs, ".mcp.json")
+	require.NoError(t, err)
+
+	var config mcpConfigFile
+	err = json.Unmarshal(content, &config)
+	require.NoError(t, err)
+
+	require.Len(t, config.MCPServers, 1)
+	assert.Contains(t, config.MCPServers, "server-two")
+	assert.NotContains(t, config.MCPServers, "server-one")
 }

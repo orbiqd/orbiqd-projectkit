@@ -28,6 +28,9 @@ packages:
   github.com/orbiqd/orbiqd-projectkit/pkg/ai/workflow:
     interfaces:
       Repository:
+  github.com/orbiqd/orbiqd-projectkit/pkg/ai/mcp:
+    interfaces:
+      Repository:
   github.com/orbiqd/orbiqd-projectkit/pkg/project:
     interfaces:
       ConfigLoader:

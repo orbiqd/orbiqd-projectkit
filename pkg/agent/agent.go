@@ -20,7 +20,7 @@ type Agent interface {
 	RebuildSkills(skillRepository skillAPI.Repository) error
 
 	// RenderMCPServers renders MCP servers to the project.
-	RenderMCPServers(mcpServer mcpAPI.MCPServer) error
+	RenderMCPServers(mcpServers []mcpAPI.MCPServer) error
 
 	// GitIgnorePatterns returns patterns that should be excluded from git-commit.
 	GitIgnorePatterns() []string

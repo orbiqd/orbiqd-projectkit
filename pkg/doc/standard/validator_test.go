@@ -166,6 +166,7 @@ func TestValidateNameFormat(t *testing.T) {
 func TestValidate_ValidStandard(t *testing.T) {
 	standard := &Standard{
 		Metadata: Metadata{
+			Id:      "my-coding-standard",
 			Name:    "My Coding Standard",
 			Version: "1.0.0",
 			Tags:    []string{"go", "best-practices"},
@@ -213,6 +214,7 @@ func TestValidate_InvalidMetadata(t *testing.T) {
 			name: "invalid semver",
 			standard: &Standard{
 				Metadata: Metadata{
+					Id:      "test",
 					Name:    "Test",
 					Version: "invalid",
 					Tags:    []string{"test"},
@@ -251,6 +253,7 @@ func TestValidate_InvalidMetadata(t *testing.T) {
 			name: "invalid language code",
 			standard: &Standard{
 				Metadata: Metadata{
+					Id:      "test",
 					Name:    "Test",
 					Version: "1.0.0",
 					Tags:    []string{"test"},
@@ -289,6 +292,7 @@ func TestValidate_InvalidMetadata(t *testing.T) {
 			name: "invalid tag format",
 			standard: &Standard{
 				Metadata: Metadata{
+					Id:      "test",
 					Name:    "Test",
 					Version: "1.0.0",
 					Tags:    []string{"Invalid_Tag"},

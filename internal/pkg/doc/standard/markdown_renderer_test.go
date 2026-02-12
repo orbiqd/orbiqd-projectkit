@@ -12,6 +12,7 @@ import (
 func newMinimalStandard() standardAPI.Standard {
 	return standardAPI.Standard{
 		Metadata: standardAPI.Metadata{
+			Id:      "test-standard",
 			Name:    "Test Standard",
 			Version: "1.0.0",
 			Tags:    []string{"test-tag"},

@@ -113,6 +113,7 @@ func TestLoader_loadStandard(t *testing.T) {
 	t.Parallel()
 
 	validYaml := `metadata:
+  id: test-standard
   name: Test Standard
   version: 1.0.0
   tags:
@@ -205,6 +206,7 @@ func TestLoader_Load(t *testing.T) {
 	t.Parallel()
 
 	validStandardYaml := `metadata:
+  id: integration-test-standard
   name: Integration Test Standard
   version: 1.0.0
   tags:
@@ -232,6 +234,7 @@ examples:
 `
 
 	validStandardYaml2 := `metadata:
+  id: second-standard
   name: Second Standard
   version: 2.0.0
   tags:
@@ -259,6 +262,7 @@ examples:
 `
 
 	invalidStandardYaml := `metadata:
+  id: invalid-standard
   name: ""
   version: 1.0.0
   tags:

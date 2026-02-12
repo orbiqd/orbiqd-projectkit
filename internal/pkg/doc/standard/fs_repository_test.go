@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"io/fs"
-	"path/filepath"
 	"testing"
 
 	standardAPI "github.com/orbiqd/orbiqd-projectkit/pkg/doc/standard"
@@ -33,6 +32,7 @@ func TestFsRepository_GetAll_WhenSingleStandard_ThenReturnsIt(t *testing.T) {
 	repo := NewFsRepository(fs)
 	standard := standardAPI.Standard{
 		Metadata: standardAPI.Metadata{
+			Id:      "test-standard",
 			Name:    "Test Standard",
 			Version: "1.0.0",
 			Tags:    []string{"test-tag"},
@@ -83,6 +83,7 @@ func TestFsRepository_GetAll_WhenMultipleStandards_ThenReturnsSortedByName(t *te
 	repo := NewFsRepository(fs)
 	standard1 := standardAPI.Standard{
 		Metadata: standardAPI.Metadata{
+			Id:      "zebra-standard",
 			Name:    "Zebra Standard",
 			Version: "1.0.0",
 			Tags:    []string{"test-tag"},
@@ -117,6 +118,7 @@ func TestFsRepository_GetAll_WhenMultipleStandards_ThenReturnsSortedByName(t *te
 	}
 	standard2 := standardAPI.Standard{
 		Metadata: standardAPI.Metadata{
+			Id:      "alpha-standard",
 			Name:    "Alpha Standard",
 			Version: "1.0.0",
 			Tags:    []string{"test-tag"},
@@ -151,6 +153,7 @@ func TestFsRepository_GetAll_WhenMultipleStandards_ThenReturnsSortedByName(t *te
 	}
 	standard3 := standardAPI.Standard{
 		Metadata: standardAPI.Metadata{
+			Id:      "middle-standard",
 			Name:    "Middle Standard",
 			Version: "1.0.0",
 			Tags:    []string{"test-tag"},
@@ -215,6 +218,7 @@ func TestFsRepository_GetAll_WhenNonJsonFilesExist_ThenIgnoresThem(t *testing.T)
 
 	standard := standardAPI.Standard{
 		Metadata: standardAPI.Metadata{
+			Id:      "test-standard",
 			Name:    "Test Standard",
 			Version: "1.0.0",
 			Tags:    []string{"test-tag"},
@@ -324,6 +328,7 @@ func TestFsRepository_AddStandard_WhenValid_ThenStoresAndCanBeRetrieved(t *testi
 	repo := NewFsRepository(fs)
 	standard := standardAPI.Standard{
 		Metadata: standardAPI.Metadata{
+			Id:      "test-standard",
 			Name:    "Test Standard",
 			Version: "1.0.0",
 			Tags:    []string{"test-tag"},
@@ -374,6 +379,7 @@ func TestFsRepository_AddStandard_WhenCalled_ThenCreatesJsonFile(t *testing.T) {
 	repo := NewFsRepository(fs)
 	standard := standardAPI.Standard{
 		Metadata: standardAPI.Metadata{
+			Id:      "test-standard",
 			Name:    "Test Standard",
 			Version: "1.0.0",
 			Tags:    []string{"test-tag"},
@@ -415,8 +421,7 @@ func TestFsRepository_AddStandard_WhenCalled_ThenCreatesJsonFile(t *testing.T) {
 	require.Len(t, files, 1)
 
 	filename := files[0].Name()
-	assert.Equal(t, ".json", filepath.Ext(filename))
-	assert.Equal(t, 41, len(filename))
+	assert.Equal(t, "test-standard.json", filename)
 
 	content, err := afero.ReadFile(fs, filename)
 	require.NoError(t, err)
@@ -426,6 +431,52 @@ func TestFsRepository_AddStandard_WhenCalled_ThenCreatesJsonFile(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "Test Standard", stored.Metadata.Name)
 	assert.Equal(t, "1.0.0", stored.Metadata.Version)
+}
+
+func TestFsRepository_AddStandard_WhenInvalidId_ThenReturnsError(t *testing.T) {
+	t.Parallel()
+
+	fs := afero.NewMemMapFs()
+	repo := NewFsRepository(fs)
+	standard := standardAPI.Standard{
+		Metadata: standardAPI.Metadata{
+			Id:      "Invalid-ID",
+			Name:    "Test Standard",
+			Version: "1.0.0",
+			Tags:    []string{"test-tag"},
+			Scope: standardAPI.ScopeMetadata{
+				Languages: []string{"en"},
+			},
+			Related: standardAPI.RelationMetadata{},
+		},
+		Specification: standardAPI.Specification{
+			Purpose: "Test purpose for standard",
+			Goals:   []string{"Test goal for standard"},
+		},
+		Requirements: standardAPI.Requirements{
+			Rules: []standardAPI.RequirementRule{
+				{
+					Level:     "must",
+					Statement: "Test statement for requirement",
+					Rationale: "Test rationale for requirement",
+				},
+			},
+		},
+		Examples: standardAPI.Examples{
+			Good: []standardAPI.Example{
+				{
+					Title:    "Test Example",
+					Language: "go",
+					Snippet:  "code snippet",
+					Reason:   "Test reason for example",
+				},
+			},
+		},
+	}
+
+	err := repo.AddStandard(standard)
+
+	require.ErrorIs(t, err, standardAPI.ErrStandardInvalidID)
 }
 
 func TestFsRepository_AddStandard_WhenWriteFileFails_ThenReturnsError(t *testing.T) {
@@ -441,6 +492,7 @@ func TestFsRepository_AddStandard_WhenWriteFileFails_ThenReturnsError(t *testing
 	repo := NewFsRepository(fs)
 	standard := standardAPI.Standard{
 		Metadata: standardAPI.Metadata{
+			Id:      "test-standard",
 			Name:    "Test Standard",
 			Version: "1.0.0",
 			Tags:    []string{"test-tag"},
@@ -500,6 +552,7 @@ func TestFsRepository_RemoveAll_WhenHasStandards_ThenRemovesAll(t *testing.T) {
 	repo := NewFsRepository(fs)
 	standard1 := standardAPI.Standard{
 		Metadata: standardAPI.Metadata{
+			Id:      "test-standard-1",
 			Name:    "Test Standard 1",
 			Version: "1.0.0",
 			Tags:    []string{"test-tag"},
@@ -534,6 +587,7 @@ func TestFsRepository_RemoveAll_WhenHasStandards_ThenRemovesAll(t *testing.T) {
 	}
 	standard2 := standardAPI.Standard{
 		Metadata: standardAPI.Metadata{
+			Id:      "test-standard-2",
 			Name:    "Test Standard 2",
 			Version: "1.0.0",
 			Tags:    []string{"test-tag"},

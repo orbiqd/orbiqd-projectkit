@@ -30,6 +30,7 @@ func LoadRulebooksFromConfig(config rulebookAPI.Config, sourceResolver sourceAPI
 			slog.String("sourceUri", rulebookUri),
 			slog.Int("aiInstructionsCount", len(rulebook.AI.Instructions)),
 			slog.Int("aiSkillsCount", len(rulebook.AI.Skills)),
+			slog.Int("aiMCPServersCount", len(rulebook.AI.MCPServers)),
 		)
 	}
 

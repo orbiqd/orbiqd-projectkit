@@ -3,6 +3,7 @@ package rulebook
 import (
 	"github.com/orbiqd/orbiqd-projectkit/pkg/ai"
 	"github.com/orbiqd/orbiqd-projectkit/pkg/ai/instruction"
+	"github.com/orbiqd/orbiqd-projectkit/pkg/ai/mcp"
 	"github.com/orbiqd/orbiqd-projectkit/pkg/ai/skill"
 	"github.com/orbiqd/orbiqd-projectkit/pkg/ai/workflow"
 	"github.com/orbiqd/orbiqd-projectkit/pkg/doc"
@@ -13,6 +14,7 @@ type AiRulebook struct {
 	Instructions []instruction.Instructions
 	Skills       []skill.Skill
 	Workflows    []workflow.Workflow
+	MCPServers   []mcp.MCPServer
 }
 
 type DocRulebook struct {

@@ -3,9 +3,11 @@ package action
 import (
 	"fmt"
 	"log/slog"
+	"os"
 
 	"github.com/orbiqd/orbiqd-projectkit/internal/app/projectkit/loader"
 	instructionAPI "github.com/orbiqd/orbiqd-projectkit/pkg/ai/instruction"
+	mcpAPI "github.com/orbiqd/orbiqd-projectkit/pkg/ai/mcp"
 	skillAPI "github.com/orbiqd/orbiqd-projectkit/pkg/ai/skill"
 	workflowAPI "github.com/orbiqd/orbiqd-projectkit/pkg/ai/workflow"
 	standardAPI "github.com/orbiqd/orbiqd-projectkit/pkg/doc/standard"
@@ -19,6 +21,7 @@ type UpdateAction struct {
 	instructionRepository instructionAPI.Repository
 	skillRepository       skillAPI.Repository
 	workflowRepository    workflowAPI.Repository
+	mcpRepository         mcpAPI.Repository
 	standardRepository    standardAPI.Repository
 }
 
@@ -28,6 +31,7 @@ func NewUpdateAction(
 	instructionRepository instructionAPI.Repository,
 	skillRepository skillAPI.Repository,
 	workflowRepository workflowAPI.Repository,
+	mcpRepository mcpAPI.Repository,
 	standardRepository standardAPI.Repository,
 ) *UpdateAction {
 	return &UpdateAction{
@@ -36,6 +40,7 @@ func NewUpdateAction(
 		instructionRepository: instructionRepository,
 		skillRepository:       skillRepository,
 		workflowRepository:    workflowRepository,
+		mcpRepository:         mcpRepository,
 		standardRepository:    standardRepository,
 	}
 }
@@ -71,6 +76,16 @@ func (action *UpdateAction) Run() error {
 		workflows = append(workflows, workflowsSet...)
 	}
 
+	var mcpServers []mcpAPI.MCPServer
+	if action.config.AI != nil && action.config.AI.MCP != nil {
+		mcpServersSet, err := loader.LoadAiMCPServersFromConfig(*action.config.AI.MCP, action.sourceResolver)
+		if err != nil {
+			return fmt.Errorf("load mcp servers from config: %w", err)
+		}
+
+		mcpServers = append(mcpServers, mcpServersSet...)
+	}
+
 	var standards []standardAPI.Standard
 	if action.config.Docs != nil && action.config.Docs.Standard != nil {
 		standardsSet, err := loader.LoadDocStandardsFromConfig(*action.config.Docs.Standard, action.sourceResolver)
@@ -91,11 +106,25 @@ func (action *UpdateAction) Run() error {
 			instructions = append(instructions, rulebook.AI.Instructions...)
 			skills = append(skills, rulebook.AI.Skills...)
 			workflows = append(workflows, rulebook.AI.Workflows...)
+			mcpServers = append(mcpServers, rulebook.AI.MCPServers...)
 			standards = append(standards, rulebook.Doc.Standards...)
 		}
 	}
 
-	err := action.standardRepository.RemoveAll()
+	executablePath, err := action.resolveExecutablePath()
+	if err != nil {
+		return err
+	}
+
+	mcpServers = append(mcpServers, mcpAPI.MCPServer{
+		Name: "projectkit",
+		STDIO: &mcpAPI.STDIOMCPServer{
+			ExecutablePath: executablePath,
+			Arguments:      []string{"mcp", "server"},
+		},
+	})
+
+	err = action.standardRepository.RemoveAll()
 	if err != nil {
 		return fmt.Errorf("remove all standards from repository: %w", err)
 	}
@@ -143,5 +172,30 @@ func (action *UpdateAction) Run() error {
 	}
 	slog.Info("Workflows added to repository.", slog.Int("count", len(workflows)))
 
+	err = action.mcpRepository.RemoveAll()
+	if err != nil {
+		return fmt.Errorf("remove all mcp servers from repository: %w", err)
+	}
+	for _, mcpServer := range mcpServers {
+		err := action.mcpRepository.AddMCPServer(mcpServer)
+		if err != nil {
+			return fmt.Errorf("add mcp server: %w", err)
+		}
+	}
+	slog.Info("MCP servers added to repository.", slog.Int("count", len(mcpServers)))
+
 	return nil
+}
+
+func (action *UpdateAction) resolveExecutablePath() (string, error) {
+	if envPath := os.Getenv("BRIEFKIT_BINARY_PATH"); envPath != "" {
+		return envPath, nil
+	}
+
+	execPath, err := os.Executable()
+	if err != nil {
+		return "", fmt.Errorf("resolve executable path: %w", err)
+	}
+
+	return execPath, nil
 }

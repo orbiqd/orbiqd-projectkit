@@ -5,6 +5,7 @@ import (
 	"github.com/orbiqd/orbiqd-projectkit/internal/pkg/git"
 	agentAPI "github.com/orbiqd/orbiqd-projectkit/pkg/agent"
 	instructionAPI "github.com/orbiqd/orbiqd-projectkit/pkg/ai/instruction"
+	mcpAPI "github.com/orbiqd/orbiqd-projectkit/pkg/ai/mcp"
 	skillAPI "github.com/orbiqd/orbiqd-projectkit/pkg/ai/skill"
 	projectAPI "github.com/orbiqd/orbiqd-projectkit/pkg/project"
 )
@@ -17,6 +18,7 @@ func (cmd *AgentRenderCmd) Run(
 	instructionRepository instructionAPI.Repository,
 	skillRepository skillAPI.Repository,
 	agentRegistry agentAPI.Registry,
+	mcpRepository mcpAPI.Repository,
 ) error {
-	return action.NewRenderAgentAction(gitFs, *config, agentRegistry, skillRepository, instructionRepository).Run()
+	return action.NewRenderAgentAction(gitFs, *config, agentRegistry, skillRepository, instructionRepository, mcpRepository).Run()
 }

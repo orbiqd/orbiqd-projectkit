@@ -8,7 +8,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/google/uuid"
 	standardAPI "github.com/orbiqd/orbiqd-projectkit/pkg/doc/standard"
 	projectAPI "github.com/orbiqd/orbiqd-projectkit/pkg/project"
 	"github.com/spf13/afero"
@@ -116,7 +115,11 @@ func (repository *FsRepository) AddStandard(standard standardAPI.Standard) error
 	repository.mutex.Lock()
 	defer repository.mutex.Unlock()
 
-	filename := uuid.NewString() + ".json"
+	if err := standard.Metadata.Id.Validate(); err != nil {
+		return err
+	}
+
+	filename := string(standard.Metadata.Id) + ".json"
 	return repository.saveFile(filename, standard)
 }
 

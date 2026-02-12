@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"path/filepath"
 
-	"github.com/iancoleman/strcase"
 	standardAPI "github.com/orbiqd/orbiqd-projectkit/pkg/doc/standard"
 	projectAPI "github.com/orbiqd/orbiqd-projectkit/pkg/project"
 	"github.com/spf13/afero"
@@ -70,7 +69,7 @@ func (action *RenderDocStandardAction) renderToDestination(
 			return fmt.Errorf("failed to render standard %s: %w", std.Metadata.Name, err)
 		}
 
-		filename := strcase.ToKebab(std.Metadata.Name) + renderer.FileExtension()
+		filename := string(std.Metadata.Id) + renderer.FileExtension()
 		filePath := filepath.Join(renderConfig.Destination, filename)
 
 		if err := afero.WriteFile(action.projectFs, filePath, rendered, 0644); err != nil {

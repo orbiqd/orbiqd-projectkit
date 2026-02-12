@@ -231,16 +231,16 @@ func (_c *MockAgent_RenderInstructions_Call) RunAndReturn(run func(instructions 
 }
 
 // RenderMCPServers provides a mock function for the type MockAgent
-func (_mock *MockAgent) RenderMCPServers(mcpServer mcp.MCPServer) error {
-	ret := _mock.Called(mcpServer)
+func (_mock *MockAgent) RenderMCPServers(mcpServers []mcp.MCPServer) error {
+	ret := _mock.Called(mcpServers)
 
 	if len(ret) == 0 {
 		panic("no return value specified for RenderMCPServers")
 	}
 
 	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(mcp.MCPServer) error); ok {
-		r0 = returnFunc(mcpServer)
+	if returnFunc, ok := ret.Get(0).(func([]mcp.MCPServer) error); ok {
+		r0 = returnFunc(mcpServers)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -253,16 +253,16 @@ type MockAgent_RenderMCPServers_Call struct {
 }
 
 // RenderMCPServers is a helper method to define mock.On call
-//   - mcpServer mcp.MCPServer
-func (_e *MockAgent_Expecter) RenderMCPServers(mcpServer interface{}) *MockAgent_RenderMCPServers_Call {
-	return &MockAgent_RenderMCPServers_Call{Call: _e.mock.On("RenderMCPServers", mcpServer)}
+//   - mcpServers []mcp.MCPServer
+func (_e *MockAgent_Expecter) RenderMCPServers(mcpServers interface{}) *MockAgent_RenderMCPServers_Call {
+	return &MockAgent_RenderMCPServers_Call{Call: _e.mock.On("RenderMCPServers", mcpServers)}
 }
 
-func (_c *MockAgent_RenderMCPServers_Call) Run(run func(mcpServer mcp.MCPServer)) *MockAgent_RenderMCPServers_Call {
+func (_c *MockAgent_RenderMCPServers_Call) Run(run func(mcpServers []mcp.MCPServer)) *MockAgent_RenderMCPServers_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 mcp.MCPServer
+		var arg0 []mcp.MCPServer
 		if args[0] != nil {
-			arg0 = args[0].(mcp.MCPServer)
+			arg0 = args[0].([]mcp.MCPServer)
 		}
 		run(
 			arg0,
@@ -276,7 +276,7 @@ func (_c *MockAgent_RenderMCPServers_Call) Return(err error) *MockAgent_RenderMC
 	return _c
 }
 
-func (_c *MockAgent_RenderMCPServers_Call) RunAndReturn(run func(mcpServer mcp.MCPServer) error) *MockAgent_RenderMCPServers_Call {
+func (_c *MockAgent_RenderMCPServers_Call) RunAndReturn(run func(mcpServers []mcp.MCPServer) error) *MockAgent_RenderMCPServers_Call {
 	_c.Call.Return(run)
 	return _c
 }

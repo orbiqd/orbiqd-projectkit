@@ -89,7 +89,7 @@ func (agent *Agent) RebuildSkills(skillRepository skillAPI.Repository) error {
 	return nil
 }
 
-func (agent *Agent) RenderMCPServers(mcpServer mcpAPI.MCPServer) error {
+func (agent *Agent) RenderMCPServers(mcpServers []mcpAPI.MCPServer) error {
 	return nil
 }
 

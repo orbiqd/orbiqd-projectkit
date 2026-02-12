@@ -5,6 +5,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/iancoleman/strcase"
 	"github.com/orbiqd/orbiqd-projectkit/internal/pkg/doc/standard"
 	standardAPI "github.com/orbiqd/orbiqd-projectkit/pkg/doc/standard"
 	"github.com/spf13/afero"
@@ -16,6 +17,7 @@ import (
 func sampleStandard(name string) standardAPI.Standard {
 	return standardAPI.Standard{
 		Metadata: standardAPI.Metadata{
+			Id:      standardAPI.StandardId(strcase.ToKebab(name)),
 			Name:    name,
 			Version: "1.0.0",
 			Tags:    []string{"test"},

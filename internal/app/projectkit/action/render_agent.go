@@ -8,6 +8,7 @@ import (
 	"github.com/orbiqd/orbiqd-projectkit/internal/pkg/git"
 	agentAPI "github.com/orbiqd/orbiqd-projectkit/pkg/agent"
 	instructionAPI "github.com/orbiqd/orbiqd-projectkit/pkg/ai/instruction"
+	mcpAPI "github.com/orbiqd/orbiqd-projectkit/pkg/ai/mcp"
 	skillAPI "github.com/orbiqd/orbiqd-projectkit/pkg/ai/skill"
 	projectAPI "github.com/orbiqd/orbiqd-projectkit/pkg/project"
 )
@@ -18,6 +19,7 @@ type RenderAgentAction struct {
 	agentRegistry         agentAPI.Registry
 	skillRepository       skillAPI.Repository
 	instructionRepository instructionAPI.Repository
+	mcpRepository         mcpAPI.Repository
 }
 
 func NewRenderAgentAction(
@@ -26,6 +28,7 @@ func NewRenderAgentAction(
 	agentRegistry agentAPI.Registry,
 	skillRepository skillAPI.Repository,
 	instructionRepository instructionAPI.Repository,
+	mcpRepository mcpAPI.Repository,
 ) *RenderAgentAction {
 	return &RenderAgentAction{
 		gitFs:                 gitFs,
@@ -33,6 +36,7 @@ func NewRenderAgentAction(
 		agentRegistry:         agentRegistry,
 		skillRepository:       skillRepository,
 		instructionRepository: instructionRepository,
+		mcpRepository:         mcpRepository,
 	}
 }
 
@@ -66,6 +70,16 @@ func (action *RenderAgentAction) Run() error {
 		err = agent.RebuildSkills(action.skillRepository)
 		if err != nil {
 			return fmt.Errorf("rebuild skills: %w", err)
+		}
+
+		mcpServers, err := action.mcpRepository.GetAll()
+		if err != nil {
+			return fmt.Errorf("get all mcp servers: %w", err)
+		}
+
+		err = agent.RenderMCPServers(mcpServers)
+		if err != nil {
+			return fmt.Errorf("render mcp servers: %w", err)
 		}
 
 		for _, pattern := range agent.GitIgnorePatterns() {
