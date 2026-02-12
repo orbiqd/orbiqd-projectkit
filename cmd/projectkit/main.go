@@ -13,12 +13,13 @@ import (
 	"github.com/orbiqd/orbiqd-projectkit/internal/pkg/agent/codex"
 	"github.com/orbiqd/orbiqd-projectkit/internal/pkg/ai/instruction"
 	"github.com/orbiqd/orbiqd-projectkit/internal/pkg/ai/skill"
+	"github.com/orbiqd/orbiqd-projectkit/internal/pkg/ai/workflow"
+	"github.com/orbiqd/orbiqd-projectkit/internal/pkg/doc/standard"
+	"github.com/orbiqd/orbiqd-projectkit/internal/pkg/git"
 	"github.com/orbiqd/orbiqd-projectkit/internal/pkg/log"
-	_ "github.com/orbiqd/orbiqd-projectkit/internal/pkg/project"
+	projectInternal "github.com/orbiqd/orbiqd-projectkit/internal/pkg/project"
 	"github.com/orbiqd/orbiqd-projectkit/internal/pkg/source"
 	agentAPI "github.com/orbiqd/orbiqd-projectkit/pkg/agent"
-	instructionAPI "github.com/orbiqd/orbiqd-projectkit/pkg/ai/instruction"
-	skillAPI "github.com/orbiqd/orbiqd-projectkit/pkg/ai/skill"
 	projectAPI "github.com/orbiqd/orbiqd-projectkit/pkg/project"
 	sourceAPI "github.com/orbiqd/orbiqd-projectkit/pkg/source"
 	"github.com/spf13/afero"
@@ -40,13 +41,6 @@ func main() {
 		kong.Vars{"version": version + " (" + commit + ", " + date + ")"},
 	)
 
-	projectRootPath, err := os.Getwd()
-	if err != nil {
-		runtime.Fatalf("Failed to get current working directory: %v", err)
-	}
-
-	projectRootFs := afero.NewBasePathFs(afero.NewOsFs(), projectRootPath)
-
 	logger, err := log.CreateLoggerFromConfig(cmd.Log)
 	if err != nil {
 		runtime.Fatalf("create logger: %v", err)
@@ -61,11 +55,26 @@ func main() {
 		runtime.Fatalf("bind context to provider: %v", err)
 	}
 
+	err = runtime.BindSingletonProvider(projectInternal.NewProjectFsProvider())
+	if err != nil {
+		runtime.Fatalf("Failed to bind project filesystem provider: %v", err)
+	}
+
+	err = runtime.BindSingletonProvider(git.NewGitFsProvider())
+	if err != nil {
+		runtime.Fatalf("Failed to bind git filesystem provider: %v", err)
+	}
+
 	configLoader, err := projectAPI.DefaultConfigLoader()
 	if err != nil {
 		runtime.Fatalf("create config loader: %v", err)
 	}
 	runtime.BindTo(configLoader, (*projectAPI.ConfigLoader)(nil))
+
+	err = runtime.BindSingletonProvider(projectInternal.NewConfigProvider())
+	if err != nil {
+		runtime.Fatalf("bind config provider: %v", err)
+	}
 
 	sourceDriverRepository := source.NewDriverRepository()
 	err = sourceDriverRepository.RegisterDriver(source.NewLocalDriver())
@@ -76,22 +85,37 @@ func main() {
 	sourceResolver := source.NewResolver(sourceDriverRepository)
 	runtime.BindTo(sourceResolver, (*sourceAPI.Resolver)(nil))
 
-	instructionRepository := instruction.NewMemoryRepository()
-	runtime.BindTo(instructionRepository, (*instructionAPI.Repository)(nil))
-
-	agentRegistry := agent.NewStaticRegistry()
-	err = agentRegistry.Register(codex.NewProvider(projectRootFs))
+	err = runtime.BindSingletonProvider(skill.NewFsRepositoryProvider())
 	if err != nil {
-		runtime.Fatalf("register agent provider: %v", err)
+		runtime.Fatalf("bind skill repository provider: %v", err)
+		return
 	}
-	err = agentRegistry.Register(claude.NewProvider(projectRootFs))
-	if err != nil {
-		runtime.Fatalf("register agent provider: %v", err)
-	}
-	runtime.BindTo(agentRegistry, (*agentAPI.Registry)(nil))
 
-	skillRepository := skill.NewMemoryRepository()
-	runtime.BindTo(skillRepository, (*skillAPI.Repository)(nil))
+	err = runtime.BindSingletonProvider(instruction.NewFsRepositoryProvider())
+	if err != nil {
+		runtime.Fatalf("bind instruction repository provider: %v", err)
+		return
+	}
+
+	err = runtime.BindSingletonProvider(standard.NewFsRepositoryProvider())
+	if err != nil {
+		runtime.Fatalf("bind standard repository provider: %v", err)
+		return
+	}
+
+	err = runtime.BindSingletonProvider(workflow.NewFsRepositoryProvider())
+	if err != nil {
+		runtime.Fatalf("bind workflow repository provider: %v", err)
+		return
+	}
+
+	err = runtime.BindSingletonProvider(agent.NewRegistryProvider(
+		func(rootFs afero.Fs) agentAPI.Provider { return claude.NewProvider(rootFs) },
+		func(rootFs afero.Fs) agentAPI.Provider { return codex.NewProvider(rootFs) },
+	))
+	if err != nil {
+		runtime.Fatalf("bind agent registry provider: %v", err)
+	}
 
 	err = runtime.Run()
 	if err != nil {

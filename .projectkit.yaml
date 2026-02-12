@@ -5,6 +5,11 @@ agents:
   - kind: claude
     options:
       instructionsFileName: AGENTS_claude.md
+docs:
+  standard:
+    render:
+      - destination: ./docs/standard
+        format: markdown
 rulebook:
   sources:
     - uri: local://./rulebooks/general

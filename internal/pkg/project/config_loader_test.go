@@ -10,6 +10,8 @@ import (
 	"github.com/orbiqd/orbiqd-projectkit/pkg/ai/instruction"
 	skillAPI "github.com/orbiqd/orbiqd-projectkit/pkg/ai/skill"
 	"github.com/orbiqd/orbiqd-projectkit/pkg/ai/workflow"
+	"github.com/orbiqd/orbiqd-projectkit/pkg/doc"
+	standardAPI "github.com/orbiqd/orbiqd-projectkit/pkg/doc/standard"
 	projectAPI "github.com/orbiqd/orbiqd-projectkit/pkg/project"
 	rulebookAPI "github.com/orbiqd/orbiqd-projectkit/pkg/rulebook"
 	"github.com/spf13/afero"
@@ -385,6 +387,7 @@ func TestConfigLoader_merge(t *testing.T) {
 		wantInstruction []instruction.SourceConfig
 		wantSkill       []skillAPI.SourceConfig
 		wantWorkflows   []workflow.SourceConfig
+		wantStandard    []standardAPI.SourceConfig
 	}{
 		{
 			name:            "WhenEmptySlice_ThenReturnsInitializedEmptyStructures",
@@ -393,6 +396,7 @@ func TestConfigLoader_merge(t *testing.T) {
 			wantInstruction: nil,
 			wantSkill:       nil,
 			wantWorkflows:   nil,
+			wantStandard:    nil,
 		},
 		{
 			name: "WhenOneConfigWithOnlyRulebook_ThenReturnsRulebookSources",
@@ -758,12 +762,137 @@ func TestConfigLoader_merge(t *testing.T) {
 			require.NotNil(t, result.AI.Instruction)
 			require.NotNil(t, result.AI.Skill)
 			require.NotNil(t, result.AI.Workflows)
+			require.NotNil(t, result.Docs)
+			require.NotNil(t, result.Docs.Standard)
 
 			assert.Equal(t, tt.wantAgents, result.Agents)
 			assert.Equal(t, tt.wantRulebook, result.Rulebook.Sources)
 			assert.Equal(t, tt.wantInstruction, result.AI.Instruction.Sources)
 			assert.Equal(t, tt.wantSkill, result.AI.Skill.Sources)
 			assert.Equal(t, tt.wantWorkflows, result.AI.Workflows.Sources)
+			assert.Equal(t, tt.wantStandard, result.Docs.Standard.Sources)
+		})
+	}
+}
+
+func TestConfigLoader_merge_WithDocsStandard(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		configs      []projectAPI.Config
+		wantStandard []standardAPI.SourceConfig
+		wantRender   []standardAPI.RenderConfig
+	}{
+		{
+			name: "WhenOneConfigWithOnlyDocsStandard_ThenReturnsStandardSources",
+			configs: []projectAPI.Config{
+				{
+					Docs: &doc.Config{
+						Standard: &standardAPI.Config{
+							Sources: []standardAPI.SourceConfig{{URI: "file://A"}},
+						},
+					},
+				},
+			},
+			wantStandard: []standardAPI.SourceConfig{{URI: "file://A"}},
+		},
+		{
+			name: "WhenTwoConfigsWithDocsStandard_ThenMergesSourcesInOrder",
+			configs: []projectAPI.Config{
+				{
+					Docs: &doc.Config{
+						Standard: &standardAPI.Config{
+							Sources: []standardAPI.SourceConfig{{URI: "file://A"}, {URI: "file://B"}},
+						},
+					},
+				},
+				{
+					Docs: &doc.Config{
+						Standard: &standardAPI.Config{
+							Sources: []standardAPI.SourceConfig{{URI: "file://C"}, {URI: "file://D"}},
+						},
+					},
+				},
+			},
+			wantStandard: []standardAPI.SourceConfig{{URI: "file://A"}, {URI: "file://B"}, {URI: "file://C"}, {URI: "file://D"}},
+		},
+		{
+			name: "WhenConfigWithNilDocs_ThenDoesNotCrash",
+			configs: []projectAPI.Config{
+				{Docs: nil},
+			},
+			wantStandard: nil,
+		},
+		{
+			name: "WhenConfigWithDocsButNilStandard_ThenDoesNotCrash",
+			configs: []projectAPI.Config{
+				{Docs: &doc.Config{Standard: nil}},
+			},
+			wantStandard: nil,
+		},
+		{
+			name: "WhenOneConfigWithRender_ThenReturnsRenderConfigs",
+			configs: []projectAPI.Config{
+				{
+					Docs: &doc.Config{
+						Standard: &standardAPI.Config{
+							Sources: []standardAPI.SourceConfig{{URI: "file://A"}},
+							Render: []standardAPI.RenderConfig{
+								{Destination: "./docs", Format: "markdown"},
+							},
+						},
+					},
+				},
+			},
+			wantStandard: []standardAPI.SourceConfig{{URI: "file://A"}},
+			wantRender: []standardAPI.RenderConfig{
+				{Destination: "./docs", Format: "markdown"},
+			},
+		},
+		{
+			name: "WhenTwoConfigsWithRender_ThenMergesRenderConfigsInOrder",
+			configs: []projectAPI.Config{
+				{
+					Docs: &doc.Config{
+						Standard: &standardAPI.Config{
+							Sources: []standardAPI.SourceConfig{{URI: "file://A"}},
+							Render: []standardAPI.RenderConfig{
+								{Destination: "./docs1", Format: "markdown"},
+							},
+						},
+					},
+				},
+				{
+					Docs: &doc.Config{
+						Standard: &standardAPI.Config{
+							Sources: []standardAPI.SourceConfig{{URI: "file://B"}},
+							Render: []standardAPI.RenderConfig{
+								{Destination: "./docs2", Format: "html"},
+							},
+						},
+					},
+				},
+			},
+			wantStandard: []standardAPI.SourceConfig{{URI: "file://A"}, {URI: "file://B"}},
+			wantRender: []standardAPI.RenderConfig{
+				{Destination: "./docs1", Format: "markdown"},
+				{Destination: "./docs2", Format: "html"},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			loader := NewConfigLoader()
+			result := loader.merge(tt.configs...)
+
+			require.NotNil(t, result.Docs)
+			require.NotNil(t, result.Docs.Standard)
+			assert.Equal(t, tt.wantStandard, result.Docs.Standard.Sources)
+			assert.Equal(t, tt.wantRender, result.Docs.Standard.Render)
 		})
 	}
 }

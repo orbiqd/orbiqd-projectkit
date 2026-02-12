@@ -5,3 +5,10 @@ ai:
   instruction:
     sources:
       - uri: rulebook://ai/instructions
+  workflow:
+    sources:
+      - uri: rulebook://ai/workflows
+doc:
+  standard:
+    sources:
+      - uri: rulebook://docs/standards/golang

@@ -8,6 +8,8 @@ import (
 	"github.com/orbiqd/orbiqd-projectkit/pkg/ai/instruction"
 	"github.com/orbiqd/orbiqd-projectkit/pkg/ai/skill"
 	"github.com/orbiqd/orbiqd-projectkit/pkg/ai/workflow"
+	"github.com/orbiqd/orbiqd-projectkit/pkg/doc"
+	"github.com/orbiqd/orbiqd-projectkit/pkg/doc/standard"
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -182,6 +184,19 @@ func TestLoader_loadMetadata_ValidatesStructure(t *testing.T) {
 				assert.Equal(t, "file://./custom-skills", metadata.AI.Skill.Sources[1].URI)
 			},
 		},
+		{
+			name: "metadata with doc standard sources",
+			yamlContent: `doc:
+  standard:
+    sources:
+      - uri: rulebook://docs/standards/golang`,
+			validateFunc: func(t *testing.T, metadata *Metadata) {
+				require.NotNil(t, metadata.Doc)
+				require.NotNil(t, metadata.Doc.Standard)
+				require.Len(t, metadata.Doc.Standard.Sources, 1)
+				assert.Equal(t, "rulebook://docs/standards/golang", metadata.Doc.Standard.Sources[0].URI)
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -276,6 +291,30 @@ func TestLoader_validateMetadata(t *testing.T) {
 				AI: &ai.Config{
 					Instruction: &instruction.Config{
 						Sources: []instruction.SourceConfig{},
+					},
+				},
+			},
+			wantErr: ErrValidationFailed,
+		},
+		{
+			name: "valid doc config",
+			metadata: Metadata{
+				Doc: &doc.Config{
+					Standard: &standard.Config{
+						Sources: []standard.SourceConfig{
+							{URI: "rulebook://docs/standards/golang"},
+						},
+					},
+				},
+			},
+			wantErr: nil,
+		},
+		{
+			name: "invalid doc config - empty sources",
+			metadata: Metadata{
+				Doc: &doc.Config{
+					Standard: &standard.Config{
+						Sources: []standard.SourceConfig{},
 					},
 				},
 			},
@@ -578,6 +617,141 @@ rules:
 			},
 			wantErr:    true,
 			errContain: "ai skills: load ai skills",
+			validate: func(t *testing.T, rb *Rulebook) {
+				assert.Nil(t, rb)
+			},
+		},
+		{
+			name: "only standards",
+			setupFs: func(fs afero.Fs) {
+				_ = afero.WriteFile(fs, rulebookFileName, []byte(`doc:
+  standard:
+    sources:
+      - uri: rulebook://docs/standards`), 0644)
+
+				_ = fs.MkdirAll("/docs/standards", 0755)
+				_ = afero.WriteFile(fs, "/docs/standards/logging.yaml", []byte(`metadata:
+  name: logging
+  version: 0.1.0
+  tags:
+    - logging
+  scope:
+    languages:
+      - go
+  relations:
+    standard: []
+specification:
+  purpose: Logging standard for testing purposes only
+  goals:
+    - use structured logging
+requirements:
+  rules:
+    - level: must
+      statement: Use structured logging for all log messages
+      rationale: Structured logs are easier to parse and analyze
+examples:
+  good:
+    - title: Structured logging example
+      language: go
+      snippet: log.Info("message")
+      reason: Uses structured logging`), 0644)
+			},
+			wantErr: false,
+			validate: func(t *testing.T, rb *Rulebook) {
+				require.NotNil(t, rb)
+				assert.Empty(t, rb.AI.Instructions)
+				assert.Empty(t, rb.AI.Skills)
+				assert.Len(t, rb.Doc.Standards, 1)
+				assert.Equal(t, "logging", rb.Doc.Standards[0].Metadata.Name)
+			},
+		},
+		{
+			name: "instructions, skills and standards",
+			setupFs: func(fs afero.Fs) {
+				_ = afero.WriteFile(fs, rulebookFileName, []byte(`ai:
+  instruction:
+    sources:
+      - uri: rulebook://ai/instructions
+  skill:
+    sources:
+      - uri: rulebook://ai/skills
+doc:
+  standard:
+    sources:
+      - uri: rulebook://docs/standards`), 0644)
+
+				_ = fs.MkdirAll("/ai/instructions", 0755)
+				_ = afero.WriteFile(fs, "/ai/instructions/01-coding.yaml", []byte(`category: "coding"
+rules:
+  - "write clean code"`), 0644)
+
+				_ = fs.MkdirAll("/ai/skills/my-skill", 0755)
+				_ = afero.WriteFile(fs, "/ai/skills/my-skill/metadata.yaml", []byte(`name: "my-skill"
+description: "A test skill"`), 0644)
+				_ = afero.WriteFile(fs, "/ai/skills/my-skill/instructions.md", []byte("Do something useful."), 0644)
+
+				_ = fs.MkdirAll("/docs/standards", 0755)
+				_ = afero.WriteFile(fs, "/docs/standards/logging.yaml", []byte(`metadata:
+  name: logging
+  version: 0.1.0
+  tags:
+    - logging
+  scope:
+    languages:
+      - go
+  relations:
+    standard: []
+specification:
+  purpose: Logging standard for testing purposes only
+  goals:
+    - use structured logging
+requirements:
+  rules:
+    - level: must
+      statement: Use structured logging for all log messages
+      rationale: Structured logs are easier to parse and analyze
+examples:
+  good:
+    - title: Structured logging example
+      language: go
+      snippet: log.Info("message")
+      reason: Uses structured logging`), 0644)
+			},
+			wantErr: false,
+			validate: func(t *testing.T, rb *Rulebook) {
+				require.NotNil(t, rb)
+				assert.Len(t, rb.AI.Instructions, 1)
+				assert.Len(t, rb.AI.Skills, 1)
+				assert.Len(t, rb.Doc.Standards, 1)
+				assert.Equal(t, "logging", rb.Doc.Standards[0].Metadata.Name)
+			},
+		},
+		{
+			name: "standard URI resolution fails",
+			setupFs: func(fs afero.Fs) {
+				_ = afero.WriteFile(fs, rulebookFileName, []byte(`doc:
+  standard:
+    sources:
+      - uri: http://invalid/scheme`), 0644)
+			},
+			wantErr:    true,
+			errContain: "doc standards: resolve source path",
+			validate: func(t *testing.T, rb *Rulebook) {
+				assert.Nil(t, rb)
+			},
+		},
+		{
+			name: "standard loading fails",
+			setupFs: func(fs afero.Fs) {
+				_ = afero.WriteFile(fs, rulebookFileName, []byte(`doc:
+  standard:
+    sources:
+      - uri: rulebook://docs/standards`), 0644)
+
+				_ = fs.MkdirAll("/docs/standards", 0755)
+			},
+			wantErr:    true,
+			errContain: "doc standards: load doc standards",
 			validate: func(t *testing.T, rb *Rulebook) {
 				assert.Nil(t, rb)
 			},

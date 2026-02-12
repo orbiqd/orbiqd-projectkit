@@ -9,6 +9,8 @@ import (
 	"github.com/go-playground/validator/v10"
 	instructionAPI "github.com/orbiqd/orbiqd-projectkit/pkg/ai/instruction"
 	skillAPI "github.com/orbiqd/orbiqd-projectkit/pkg/ai/skill"
+	workflowAPI "github.com/orbiqd/orbiqd-projectkit/pkg/ai/workflow"
+	standardAPI "github.com/orbiqd/orbiqd-projectkit/pkg/doc/standard"
 	"github.com/spf13/afero"
 	"sigs.k8s.io/yaml"
 )
@@ -40,6 +42,10 @@ func (loader *Loader) Load() (*Rulebook, error) {
 		AI: AiRulebook{
 			Instructions: []instructionAPI.Instructions{},
 			Skills:       []skillAPI.Skill{},
+			Workflows:    []workflowAPI.Workflow{},
+		},
+		Doc: DocRulebook{
+			Standards: []standardAPI.Standard{},
 		},
 	}
 
@@ -76,6 +82,42 @@ func (loader *Loader) Load() (*Rulebook, error) {
 			}
 
 			rulebook.AI.Skills = append(rulebook.AI.Skills, aiSkills...)
+		}
+	}
+
+	if metadata.AI != nil && metadata.AI.Workflows != nil {
+		for _, aiWorkflowsSource := range metadata.AI.Workflows.Sources {
+			aiWorkflowsPath, err := loader.resolveSourceUri(aiWorkflowsSource.URI)
+			if err != nil {
+				return nil, fmt.Errorf("ai workflows: resolve source path: %w", err)
+			}
+
+			aiWorkflows, err := workflowAPI.NewLoader(
+				afero.NewBasePathFs(loader.fs, aiWorkflowsPath),
+			).Load()
+			if err != nil {
+				return nil, fmt.Errorf("ai workflows: load ai workflows: %w", err)
+			}
+
+			rulebook.AI.Workflows = append(rulebook.AI.Workflows, aiWorkflows...)
+		}
+	}
+
+	if metadata.Doc != nil && metadata.Doc.Standard != nil {
+		for _, docStandardSource := range metadata.Doc.Standard.Sources {
+			docStandardPath, err := loader.resolveSourceUri(docStandardSource.URI)
+			if err != nil {
+				return nil, fmt.Errorf("doc standards: resolve source path: %w", err)
+			}
+
+			docStandards, err := standardAPI.NewLoader(
+				afero.NewBasePathFs(loader.fs, docStandardPath),
+			).Load()
+			if err != nil {
+				return nil, fmt.Errorf("doc standards: load doc standards: %w", err)
+			}
+
+			rulebook.Doc.Standards = append(rulebook.Doc.Standards, docStandards...)
 		}
 	}
 

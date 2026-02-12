@@ -7,6 +7,11 @@ import (
 	"github.com/spf13/afero"
 )
 
+// Fs represents the git filesystem abstraction.
+type Fs interface {
+	afero.Fs
+}
+
 // CreateGitFs returns a filesystem scoped to the closest .git directory.
 func CreateGitFs(projectFs afero.Fs, currentDir string) (afero.Fs, error) {
 	for {

@@ -15,6 +15,8 @@ import (
 	"github.com/orbiqd/orbiqd-projectkit/pkg/ai/instruction"
 	"github.com/orbiqd/orbiqd-projectkit/pkg/ai/skill"
 	"github.com/orbiqd/orbiqd-projectkit/pkg/ai/workflow"
+	"github.com/orbiqd/orbiqd-projectkit/pkg/doc"
+	"github.com/orbiqd/orbiqd-projectkit/pkg/doc/standard"
 )
 
 const (
@@ -163,6 +165,9 @@ func (loader *ConfigLoader) merge(configs ...projectAPI.Config) projectAPI.Confi
 			Skill:       &skill.Config{},
 			Workflows:   &workflow.Config{},
 		},
+		Docs: &doc.Config{
+			Standard: &standard.Config{},
+		},
 	}
 
 	for _, cfg := range configs {
@@ -181,6 +186,13 @@ func (loader *ConfigLoader) merge(configs ...projectAPI.Config) projectAPI.Confi
 			}
 			if cfg.AI.Workflows != nil {
 				result.AI.Workflows.Sources = append(result.AI.Workflows.Sources, cfg.AI.Workflows.Sources...)
+			}
+		}
+
+		if cfg.Docs != nil {
+			if cfg.Docs.Standard != nil {
+				result.Docs.Standard.Sources = append(result.Docs.Standard.Sources, cfg.Docs.Standard.Sources...)
+				result.Docs.Standard.Render = append(result.Docs.Standard.Render, cfg.Docs.Standard.Render...)
 			}
 		}
 	}
