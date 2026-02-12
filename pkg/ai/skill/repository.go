@@ -6,6 +6,7 @@ type Repository interface {
 	GetSkillByName(name Name) (*Skill, error)
 	GetAll() ([]Skill, error)
 	AddSkill(skill Skill) error
+	RemoveAll() error
 }
 
 var (

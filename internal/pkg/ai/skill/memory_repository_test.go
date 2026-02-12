@@ -261,3 +261,141 @@ func TestMemoryRepository_GetAll_WhenSkillsWithScripts_ThenReturnsAllData(t *tes
 	assert.Contains(t, result.Scripts, skillAPI.ScriptName("script1.sh"))
 	assert.Contains(t, result.Scripts, skillAPI.ScriptName("script2.py"))
 }
+
+func TestMemoryRepository_RemoveAll_WhenEmpty_ThenSucceeds(t *testing.T) {
+	t.Parallel()
+
+	repo := NewMemoryRepository()
+
+	err := repo.RemoveAll()
+	require.NoError(t, err)
+
+	skills, err := repo.GetAll()
+	require.NoError(t, err)
+	assert.Empty(t, skills)
+}
+
+func TestMemoryRepository_RemoveAll_WhenHasSkills_ThenRemovesAll(t *testing.T) {
+	t.Parallel()
+
+	repo := NewMemoryRepository()
+	skill1 := skillAPI.Skill{
+		Metadata: skillAPI.Metadata{
+			Name:        "skill1",
+			Description: "First skill",
+		},
+		Instructions: "Instructions 1",
+	}
+	skill2 := skillAPI.Skill{
+		Metadata: skillAPI.Metadata{
+			Name:        "skill2",
+			Description: "Second skill",
+		},
+		Instructions: "Instructions 2",
+	}
+
+	err := repo.AddSkill(skill1)
+	require.NoError(t, err)
+	err = repo.AddSkill(skill2)
+	require.NoError(t, err)
+
+	skills, err := repo.GetAll()
+	require.NoError(t, err)
+	require.Len(t, skills, 2)
+
+	err = repo.RemoveAll()
+	require.NoError(t, err)
+
+	skills, err = repo.GetAll()
+	require.NoError(t, err)
+	assert.Empty(t, skills)
+}
+
+func TestMemoryRepository_RemoveAll_WhenCalledMultipleTimes_ThenSucceeds(t *testing.T) {
+	t.Parallel()
+
+	repo := NewMemoryRepository()
+	skill := skillAPI.Skill{
+		Metadata: skillAPI.Metadata{
+			Name:        "test-skill",
+			Description: "Test skill",
+		},
+		Instructions: "Test instructions",
+	}
+
+	err := repo.AddSkill(skill)
+	require.NoError(t, err)
+
+	err = repo.RemoveAll()
+	require.NoError(t, err)
+
+	err = repo.RemoveAll()
+	require.NoError(t, err)
+
+	skills, err := repo.GetAll()
+	require.NoError(t, err)
+	assert.Empty(t, skills)
+}
+
+func TestMemoryRepository_RemoveAll_WhenFollowedByAdd_ThenAcceptsNewSkill(t *testing.T) {
+	t.Parallel()
+
+	repo := NewMemoryRepository()
+	oldSkill := skillAPI.Skill{
+		Metadata: skillAPI.Metadata{
+			Name:        "old-skill",
+			Description: "Old skill",
+		},
+		Instructions: "Old instructions",
+	}
+
+	err := repo.AddSkill(oldSkill)
+	require.NoError(t, err)
+
+	err = repo.RemoveAll()
+	require.NoError(t, err)
+
+	newSkill := skillAPI.Skill{
+		Metadata: skillAPI.Metadata{
+			Name:        "new-skill",
+			Description: "New skill",
+		},
+		Instructions: "New instructions",
+	}
+
+	err = repo.AddSkill(newSkill)
+	require.NoError(t, err)
+
+	skills, err := repo.GetAll()
+	require.NoError(t, err)
+	require.Len(t, skills, 1)
+	assert.Equal(t, skillAPI.Name("new-skill"), skills[0].Metadata.Name)
+	assert.Equal(t, "New skill", skills[0].Metadata.Description)
+}
+
+func TestMemoryRepository_RemoveAll_WhenFollowedByGetByName_ThenReturnsNotFound(t *testing.T) {
+	t.Parallel()
+
+	repo := NewMemoryRepository()
+	skill := skillAPI.Skill{
+		Metadata: skillAPI.Metadata{
+			Name:        "removed-skill",
+			Description: "Will be removed",
+		},
+		Instructions: "Instructions",
+	}
+
+	err := repo.AddSkill(skill)
+	require.NoError(t, err)
+
+	result, err := repo.GetSkillByName("removed-skill")
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	err = repo.RemoveAll()
+	require.NoError(t, err)
+
+	result, err = repo.GetSkillByName("removed-skill")
+	require.ErrorIs(t, err, skillAPI.ErrSkillNotFound)
+	assert.Nil(t, result)
+}

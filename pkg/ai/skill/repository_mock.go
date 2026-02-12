@@ -202,3 +202,47 @@ func (_c *MockRepository_GetSkillByName_Call) RunAndReturn(run func(name Name) (
 	_c.Call.Return(run)
 	return _c
 }
+
+// RemoveAll provides a mock function for the type MockRepository
+func (_mock *MockRepository) RemoveAll() error {
+	ret := _mock.Called()
+
+	if len(ret) == 0 {
+		panic("no return value specified for RemoveAll")
+	}
+
+	var r0 error
+	if returnFunc, ok := ret.Get(0).(func() error); ok {
+		r0 = returnFunc()
+	} else {
+		r0 = ret.Error(0)
+	}
+	return r0
+}
+
+// MockRepository_RemoveAll_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'RemoveAll'
+type MockRepository_RemoveAll_Call struct {
+	*mock.Call
+}
+
+// RemoveAll is a helper method to define mock.On call
+func (_e *MockRepository_Expecter) RemoveAll() *MockRepository_RemoveAll_Call {
+	return &MockRepository_RemoveAll_Call{Call: _e.mock.On("RemoveAll")}
+}
+
+func (_c *MockRepository_RemoveAll_Call) Run(run func()) *MockRepository_RemoveAll_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *MockRepository_RemoveAll_Call) Return(err error) *MockRepository_RemoveAll_Call {
+	_c.Call.Return(err)
+	return _c
+}
+
+func (_c *MockRepository_RemoveAll_Call) RunAndReturn(run func() error) *MockRepository_RemoveAll_Call {
+	_c.Call.Return(run)
+	return _c
+}

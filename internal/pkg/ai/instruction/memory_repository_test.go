@@ -127,3 +127,99 @@ func TestMemoryRepository_GetAll_WhenHasInstructions_ThenReturnsAll(t *testing.T
 	assert.True(t, categoriesFound["coding"])
 	assert.True(t, categoriesFound["testing"])
 }
+
+func TestMemoryRepository_RemoveAll_WhenEmpty_ThenSucceeds(t *testing.T) {
+	t.Parallel()
+
+	repo := NewMemoryRepository()
+
+	err := repo.RemoveAll()
+	require.NoError(t, err)
+
+	result, err := repo.GetAll()
+	require.NoError(t, err)
+	assert.Empty(t, result)
+}
+
+func TestMemoryRepository_RemoveAll_WhenHasInstructions_ThenRemovesAll(t *testing.T) {
+	t.Parallel()
+
+	repo := NewMemoryRepository()
+	instructions1 := instructionAPI.Instructions{
+		Category: "coding",
+		Rules:    []instructionAPI.Rule{"rule1", "rule2"},
+	}
+	instructions2 := instructionAPI.Instructions{
+		Category: "testing",
+		Rules:    []instructionAPI.Rule{"rule3"},
+	}
+
+	err := repo.AddInstructions(instructions1)
+	require.NoError(t, err)
+	err = repo.AddInstructions(instructions2)
+	require.NoError(t, err)
+
+	result, err := repo.GetAll()
+	require.NoError(t, err)
+	require.Len(t, result, 2)
+
+	err = repo.RemoveAll()
+	require.NoError(t, err)
+
+	result, err = repo.GetAll()
+	require.NoError(t, err)
+	assert.Empty(t, result)
+}
+
+func TestMemoryRepository_RemoveAll_WhenCalledMultipleTimes_ThenSucceeds(t *testing.T) {
+	t.Parallel()
+
+	repo := NewMemoryRepository()
+	instructions := instructionAPI.Instructions{
+		Category: "coding",
+		Rules:    []instructionAPI.Rule{"rule1"},
+	}
+
+	err := repo.AddInstructions(instructions)
+	require.NoError(t, err)
+
+	err = repo.RemoveAll()
+	require.NoError(t, err)
+
+	err = repo.RemoveAll()
+	require.NoError(t, err)
+
+	result, err := repo.GetAll()
+	require.NoError(t, err)
+	assert.Empty(t, result)
+}
+
+func TestMemoryRepository_RemoveAll_WhenFollowedByAdd_ThenAcceptsNewInstructions(t *testing.T) {
+	t.Parallel()
+
+	repo := NewMemoryRepository()
+	oldInstructions := instructionAPI.Instructions{
+		Category: "old-category",
+		Rules:    []instructionAPI.Rule{"old-rule"},
+	}
+
+	err := repo.AddInstructions(oldInstructions)
+	require.NoError(t, err)
+
+	err = repo.RemoveAll()
+	require.NoError(t, err)
+
+	newInstructions := instructionAPI.Instructions{
+		Category: "new-category",
+		Rules:    []instructionAPI.Rule{"new-rule1", "new-rule2"},
+	}
+
+	err = repo.AddInstructions(newInstructions)
+	require.NoError(t, err)
+
+	result, err := repo.GetAll()
+	require.NoError(t, err)
+	require.Len(t, result, 1)
+	assert.Equal(t, instructionAPI.Category("new-category"), result[0].Category)
+	assert.Equal(t, []instructionAPI.Rule{"new-rule1", "new-rule2"}, result[0].Rules)
+}

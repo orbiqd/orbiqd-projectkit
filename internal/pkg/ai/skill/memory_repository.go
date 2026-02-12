@@ -65,3 +65,12 @@ func (repository *MemoryRepository) GetAll() ([]skillAPI.Skill, error) {
 
 	return skills, nil
 }
+
+func (repository *MemoryRepository) RemoveAll() error {
+	repository.mutex.Lock()
+	defer repository.mutex.Unlock()
+
+	repository.skills = make(map[skillAPI.Name]skillAPI.Skill)
+
+	return nil
+}

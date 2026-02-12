@@ -47,3 +47,13 @@ func (repository *MemoryRepository) AddInstructions(instructions instructionAPI.
 
 	return nil
 }
+
+// RemoveAll removes all stored instruction sets.
+func (repository *MemoryRepository) RemoveAll() error {
+	repository.mutex.Lock()
+	defer repository.mutex.Unlock()
+
+	repository.categories = make(map[instructionAPI.Category][]instructionAPI.Rule)
+
+	return nil
+}

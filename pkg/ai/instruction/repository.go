@@ -7,4 +7,7 @@ type Repository interface {
 
 	// AddInstructions stores the provided instruction set.
 	AddInstructions(instructions Instructions) error
+
+	// RemoveAll removes all stored instruction sets.
+	RemoveAll() error
 }
