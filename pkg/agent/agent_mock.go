@@ -6,6 +6,7 @@ package agent
 
 import (
 	"github.com/orbiqd/orbiqd-projectkit/pkg/ai/instruction"
+	"github.com/orbiqd/orbiqd-projectkit/pkg/ai/mcp"
 	"github.com/orbiqd/orbiqd-projectkit/pkg/ai/skill"
 	mock "github.com/stretchr/testify/mock"
 )
@@ -225,6 +226,57 @@ func (_c *MockAgent_RenderInstructions_Call) Return(err error) *MockAgent_Render
 }
 
 func (_c *MockAgent_RenderInstructions_Call) RunAndReturn(run func(instructions []instruction.Instructions) error) *MockAgent_RenderInstructions_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// RenderMCPServers provides a mock function for the type MockAgent
+func (_mock *MockAgent) RenderMCPServers(mcpServer mcp.MCPServer) error {
+	ret := _mock.Called(mcpServer)
+
+	if len(ret) == 0 {
+		panic("no return value specified for RenderMCPServers")
+	}
+
+	var r0 error
+	if returnFunc, ok := ret.Get(0).(func(mcp.MCPServer) error); ok {
+		r0 = returnFunc(mcpServer)
+	} else {
+		r0 = ret.Error(0)
+	}
+	return r0
+}
+
+// MockAgent_RenderMCPServers_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'RenderMCPServers'
+type MockAgent_RenderMCPServers_Call struct {
+	*mock.Call
+}
+
+// RenderMCPServers is a helper method to define mock.On call
+//   - mcpServer mcp.MCPServer
+func (_e *MockAgent_Expecter) RenderMCPServers(mcpServer interface{}) *MockAgent_RenderMCPServers_Call {
+	return &MockAgent_RenderMCPServers_Call{Call: _e.mock.On("RenderMCPServers", mcpServer)}
+}
+
+func (_c *MockAgent_RenderMCPServers_Call) Run(run func(mcpServer mcp.MCPServer)) *MockAgent_RenderMCPServers_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 mcp.MCPServer
+		if args[0] != nil {
+			arg0 = args[0].(mcp.MCPServer)
+		}
+		run(
+			arg0,
+		)
+	})
+	return _c
+}
+
+func (_c *MockAgent_RenderMCPServers_Call) Return(err error) *MockAgent_RenderMCPServers_Call {
+	_c.Call.Return(err)
+	return _c
+}
+
+func (_c *MockAgent_RenderMCPServers_Call) RunAndReturn(run func(mcpServer mcp.MCPServer) error) *MockAgent_RenderMCPServers_Call {
 	_c.Call.Return(run)
 	return _c
 }
