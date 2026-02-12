@@ -1,0 +1,418 @@
+metadata:
+  name: Go Structured Logging
+  version: 0.1.0
+  tags:
+    - logging
+    - golang
+    - observability
+    - slog
+    - structured-logging
+  scope:
+    languages:
+      - go
+  relations:
+    standard: []
+
+specification:
+  purpose: >-
+    Define a consistent approach to structured logging in Go services
+    using the standard library slog package, covering logger initialization
+    via a factory pattern, message formatting conventions, and attribute usage.
+  goals:
+    - >-
+      Ensure consistent structured logging across the project by using
+      slog as the single logging library with typed attribute helpers.
+    - >-
+      Standardize logger initialization through a factory pattern
+      with Config, CreateLoggerFromConfig, and slog.SetDefault in main.
+    - >-
+      Maintain readable log messages formatted as full sentences
+      starting with a capital letter and ending with a period.
+    - >-
+      Enrich logs with contextual attributes using slog.String,
+      slog.Int, and slog.Default().With for scoped child loggers.
+  nonGoals:
+    - >-
+      Log aggregation infrastructure, log shipping, or external
+      monitoring platform configuration.
+    - >-
+      Log file rotation, retention policies, or storage management.
+
+requirements:
+  rules:
+    - level: must
+      statement: >-
+        Use the standard library log/slog package as the sole logging library.
+        Do not introduce third-party logging libraries such as logrus or zap.
+      rationale: >-
+        A single logging library ensures uniform log output across the entire
+        codebase and eliminates the need to bridge between different logging
+        APIs or output formats.
+
+    - level: must
+      statement: >-
+        Initialize the logger through the factory function CreateLoggerFromConfig
+        and register it as the default logger via slog.SetDefault in the main
+        function. Do not create loggers elsewhere.
+      rationale: >-
+        Centralizing logger creation in main guarantees a single configuration
+        point for log level, format, and output destination, preventing
+        scattered or conflicting logger setups across packages.
+      exceptions:
+        - when: >-
+            Creating a child logger with slog.Default().With() to add scoped
+            contextual attributes within a specific function or request scope.
+
+    - level: must
+      statement: >-
+        Use package-level slog functions (slog.Info, slog.Debug, slog.Warn,
+        slog.Error) for all log calls in application code outside of main.
+        Do not store or pass *slog.Logger instances between functions.
+      rationale: >-
+        Package-level functions use the default logger set in main, keeping
+        call sites simple and consistent. Passing logger instances adds
+        unnecessary parameters and creates divergent logging paths.
+      exceptions:
+        - when: >-
+            Using a child logger returned by slog.Default().With() within the
+            same function scope where it was created, to avoid repeating
+            contextual attributes on every call.
+
+    - level: must
+      statement: >-
+        Format log messages as complete sentences that start with a capital
+        letter and end with a period. Messages should describe a completed
+        action or current state concisely.
+      rationale: >-
+        Consistent sentence-style messages improve log readability in both
+        terminal output and log aggregation tools, making it easier to scan
+        and filter log streams during debugging and operations.
+
+    - level: must
+      statement: >-
+        Use typed slog attribute helpers (slog.String, slog.Int, slog.Bool,
+        slog.Any) for all log attributes. Do not use bare alternating
+        key-value pairs like slog.Info("msg", "key", value).
+      rationale: >-
+        Typed helpers provide compile-time type safety, make attribute types
+        explicit to the reader, and prevent subtle bugs from misaligned
+        key-value pairs that the compiler cannot catch.
+
+    - level: must
+      statement: >-
+        Name all log attribute keys in camelCase. Do not use snake_case,
+        kebab-case, or UPPER_CASE for attribute key names.
+      rationale: >-
+        Consistent camelCase key naming aligns with Go naming conventions,
+        ensures uniform attribute keys across all log output, and simplifies
+        querying and filtering in downstream log analysis systems.
+
+    - level: must
+      statement: >-
+        Propagate errors up the call stack using fmt.Errorf with the %w verb
+        for wrapping. Do not log errors at intermediate layers. Log errors
+        only at the top-level entry point in main.
+      rationale: >-
+        Logging errors at every layer produces duplicate and noisy log entries.
+        Wrapping and propagating errors preserves the full context chain and
+        lets the top-level handler decide on the appropriate log level and
+        output.
+      exceptions:
+        - when: >-
+            The error is handled and recovered from at the current layer, and
+            a warning or info log is appropriate to signal the recovery to
+            operators without propagating the error further.
+
+    - level: should
+      statement: >-
+        Create child loggers using slog.Default().With() when a function
+        makes multiple log calls that share the same contextual attributes,
+        to avoid repeating those attributes on each call.
+      rationale: >-
+        Child loggers reduce attribute duplication across related log calls,
+        keep code concise, and ensure consistent contextual enrichment for
+        all log entries within a logical scope.
+
+    - level: should
+      statement: >-
+        Choose the appropriate log level based on audience and urgency. Use
+        Debug for developer diagnostics, Info for operator-relevant state
+        changes, Warn for recoverable anomalies, and Error only in main for
+        fatal outcomes.
+      rationale: >-
+        Correct log level assignment enables effective filtering in production,
+        keeps Info-level output actionable without noise, and reserves Error
+        for situations that require immediate operator attention.
+
+goldenPath:
+  steps:
+    - >-
+      Configure the logger by populating the Config struct with the desired
+      log level, output format, and quiet mode setting.
+    - >-
+      Create the logger in main by calling CreateLoggerFromConfig with the
+      Config instance and register it as the process-wide default via
+      slog.SetDefault.
+    - >-
+      Use package-level slog functions with typed attribute helpers for all
+      log calls in application code outside of main.
+    - >-
+      Propagate errors up the call stack using fmt.Errorf with the %w verb
+      and log errors only at the top-level entry point in main.
+  examples:
+    - name: Logger bootstrap and configuration
+      when:
+        - >-
+          Starting a new Go application that requires structured logging
+          with configurable level, format, and output destination.
+      steps:
+        - >-
+          Define a Config struct instance choosing the log level from debug,
+          info (default), warn, or error depending on the environment.
+        - >-
+          Select the output format from text-color (default, colored terminal
+          output), text-no-color (plain structured text), or json (structured
+          JSON for log aggregation systems).
+        - >-
+          Set quiet to true only when log output must be completely suppressed,
+          such as in automated test environments or silent CLI modes.
+        - >-
+          Implement the CreateLoggerFromConfig factory function that parses
+          the config, selects the appropriate slog handler based on format,
+          and returns a configured slog.Logger instance.
+        - >-
+          Call CreateLoggerFromConfig in the main function, handle the returned
+          error by writing to stderr and exiting, then register the logger as
+          the default with slog.SetDefault.
+      examples:
+        - path: config-struct-definition
+          snippet: |
+            // Config controls the logger behavior.
+            // Level:  "debug" | "info" (default) | "warn" | "error"
+            // Format: "text-color" (default) | "text-no-color" | "json"
+            // Quiet:  true suppresses all output (sends to io.Discard)
+            type Config struct {
+                Level  string // Controls minimum severity of emitted logs.
+                Format string // Selects the handler: colored text, plain text, or JSON.
+                Quiet  bool   // When true, discards all log output.
+            }
+        - path: logger-factory-implementation
+          snippet: |
+            func CreateLoggerFromConfig(config Config) (*slog.Logger, error) {
+                level, err := parseLogLevel(config.Level)
+                if err != nil {
+                    return nil, fmt.Errorf("parse log level: %w", err)
+                }
+
+                output := io.Writer(os.Stderr)
+                if config.Quiet {
+                    output = io.Discard
+                }
+
+                handler, err := createLogHandler(config.Format, output, level)
+                if err != nil {
+                    return nil, fmt.Errorf("create log handler: %w", err)
+                }
+
+                return slog.New(handler), nil
+            }
+
+            func createLogHandler(format string, output io.Writer, level slog.Level) (slog.Handler, error) {
+                switch strings.ToLower(strings.TrimSpace(format)) {
+                case "text-no-color":
+                    return slog.NewTextHandler(output, &slog.HandlerOptions{Level: level}), nil
+                case "text-color":
+                    options := slogcolor.DefaultOptions
+                    options.Level = level
+                    return slogcolor.NewHandler(output, options), nil
+                case "json":
+                    return slog.NewJSONHandler(output, &slog.HandlerOptions{Level: level}), nil
+                default:
+                    return nil, fmt.Errorf("unknown log format: %s", format)
+                }
+            }
+        - path: main-bootstrap
+          snippet: |
+            func main() {
+                cfg := parseFlags()
+
+                logger, err := log.CreateLoggerFromConfig(cfg.Log)
+                if err != nil {
+                    fmt.Fprintf(os.Stderr, "create logger: %v\n", err)
+                    os.Exit(1)
+                }
+                slog.SetDefault(logger)
+
+                if err := run(cfg); err != nil {
+                    slog.Error("Application failed.", slog.String("error", err.Error()))
+                    os.Exit(1)
+                }
+            }
+
+    - name: Application logging and error handling
+      when:
+        - >-
+          Writing business logic in service or repository layers that needs
+          structured log output and correct error propagation.
+      steps:
+        - >-
+          Call package-level slog functions with typed helpers such as
+          slog.String and slog.Int, formatting the message as a sentence
+          starting with a capital letter and ending with a period.
+        - >-
+          Create a child logger with slog.Default().With() when a function
+          makes multiple log calls that share the same contextual attribute
+          to avoid repeating it on each call.
+        - >-
+          Wrap and return errors with fmt.Errorf using the %w verb instead
+          of logging them at intermediate layers, preserving the full error
+          chain for the top-level caller.
+        - >-
+          Log errors exclusively in main with slog.Error and a typed
+          slog.String attribute containing err.Error(), ensuring a single
+          log entry per error occurrence.
+      examples:
+        - path: service-function-with-child-logger
+          snippet: |
+            func (s *OrderService) ProcessBatch(batchID string, orders []Order) error {
+                logger := slog.Default().With(slog.String("batchId", batchID))
+                logger.Info("Processing batch.", slog.Int("orderCount", len(orders)))
+
+                for _, order := range orders {
+                    if err := s.repo.Save(order); err != nil {
+                        return fmt.Errorf("save order %s: %w", order.ID, err)
+                    }
+                }
+
+                logger.Info("Batch processed successfully.")
+                return nil
+            }
+        - path: top-level-error-handling
+          snippet: |
+            if err := app.Run(ctx); err != nil {
+                slog.Error("Application failed.", slog.String("error", err.Error()))
+                os.Exit(1)
+            }
+
+examples:
+  good:
+    - title: Typed attributes with proper message format
+      language: go
+      snippet: |
+        slog.Info("Order processed successfully.",
+            slog.String("orderId", order.ID),
+            slog.Int("itemCount", len(order.Items)),
+            slog.String("customerEmail", order.Email),
+        )
+      reason: >-
+        Uses typed attribute helpers slog.String and slog.Int for compile-time
+        type safety. The message starts with a capital letter, describes a
+        completed action, and ends with a period. Attribute keys use camelCase.
+
+    - title: Child logger for scoped context
+      language: go
+      snippet: |
+        logger := slog.Default().With(slog.String("requestId", reqID))
+        logger.Debug("Parsing request body.")
+        logger.Info("Request handled successfully.")
+      reason: >-
+        Creates a child logger with slog.Default().With() to attach the
+        requestId attribute to all subsequent log calls within the scope,
+        avoiding repetition of the same attribute on each call.
+
+    - title: Logger initialization in main
+      language: go
+      snippet: |
+        logger, err := log.CreateLoggerFromConfig(cfg.Log)
+        if err != nil {
+            fmt.Fprintf(os.Stderr, "create logger: %v\n", err)
+            os.Exit(1)
+        }
+        slog.SetDefault(logger)
+      reason: >-
+        Initializes the logger through the factory function and registers it
+        as the default with slog.SetDefault in main, establishing a single
+        configuration point for the entire application.
+
+    - title: Error propagation with wrapping
+      language: go
+      snippet: |
+        conn, err := db.Connect(ctx, dsn)
+        if err != nil {
+            return fmt.Errorf("connect to database: %w", err)
+        }
+      reason: >-
+        Wraps and propagates the error up the call stack using fmt.Errorf
+        with the %w verb instead of logging it at this intermediate layer.
+        The top-level caller in main decides how to log the error.
+
+    - title: Error logging at top level
+      language: go
+      snippet: |
+        if err := app.Run(ctx); err != nil {
+            slog.Error("Application failed.", slog.String("error", err.Error()))
+            os.Exit(1)
+        }
+      reason: >-
+        Logs the error only at the top-level entry point in main using
+        slog.Error with a typed slog.String attribute. This is the single
+        place where errors are logged, keeping lower layers free of duplicate
+        log entries.
+
+  bad:
+    - title: Bare key-value pairs without typed helpers
+      language: go
+      snippet: |
+        slog.Error("Request failed.",
+            "method", r.Method,
+            "path", r.URL.Path,
+            "status", statusCode,
+        )
+      reason: >-
+        Uses bare alternating key-value pairs instead of typed helpers like
+        slog.String and slog.Int. This loses compile-time type safety and
+        risks misaligned pairs that produce garbled log output at runtime
+        without any compiler warning.
+
+    - title: Incorrect message formatting
+      language: go
+      snippet: |
+        slog.Info("file uploaded", "name", fileName)
+      reason: >-
+        The message starts with a lowercase letter and lacks a trailing
+        period, violating the sentence formatting convention. It also uses
+        a bare key-value pair instead of slog.String for the attribute.
+
+    - title: Logging errors at intermediate layers
+      language: go
+      snippet: |
+        conn, err := db.Connect(ctx, dsn)
+        if err != nil {
+            slog.Error("Failed to connect.", slog.String("error", err.Error()))
+            return fmt.Errorf("connect to database: %w", err)
+        }
+      reason: >-
+        Logs the error and then propagates it, causing the same error to
+        appear in logs multiple times as each layer adds its own log entry.
+        Errors should be wrapped and propagated, then logged only in main.
+
+    - title: Passing logger instance as function parameter
+      language: go
+      snippet: |
+        func sendEmail(logger *slog.Logger, to string, body string) error {
+            logger.Info("Sending email.", slog.String("recipient", to))
+            return nil
+        }
+      reason: >-
+        Passes a logger instance as a function parameter instead of using
+        package-level slog functions. This adds unnecessary parameters to
+        function signatures and creates divergent logging paths across the
+        codebase.
+
+references:
+  - title: Go log/slog package documentation
+    type: documentation
+    uri: https://pkg.go.dev/log/slog
+  - title: slog-color library for colored text output
+    type: documentation
+    uri: https://github.com/dusted-go/logging
