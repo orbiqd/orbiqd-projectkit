@@ -1,0 +1,45 @@
+metadata:
+  id: example
+  name: Example 4-steps workflow.
+  description: Example workflow demonstrating number generation and calculations.
+  version: 0.1.0
+
+state:
+  firstNumber:
+    type: integer
+    description: Random number between 1 and 100.
+  secondNumber:
+    type: integer
+    description: Random number between 1 and 200.
+  addResult:
+    type: integer
+    description: Sum of firstNumber and secondNumber.
+  subResult:
+    type: integer
+    description: Difference between secondNumber and firstNumber.
+  totalResult:
+    type: integer
+    description: Product of addResult and subResult.
+
+steps:
+  - id: prepare-numbers
+    name: Prepare random numbers
+    description: Generate two random numbers to be used in subsequent calculations.
+    instructions:
+      - Generate random number between 1 and 100 and store it in variable `firstNumber`.
+      - Generate random number between 1 and 200 and store it in variable `secondNumber`.
+  - id: add-numbers
+    name: Add numbers
+    description: Calculate the sum of the two generated numbers.
+    instructions:
+      - Add `firstNumber` and `secondNumber` and store it in variable `addResult`.
+  - id: subtract-numbers
+    name: Subtract numbers
+    description: Calculate the difference between the two generated numbers.
+    instructions:
+      - Subtract `firstNumber` from `secondNumber` and store it in variable `subResult`.
+  - id: calculate-total
+    name: Calculate total
+    description: Multiply the addition and subtraction results to get the final total.
+    instructions:
+      - Multiply `addResult` and `subResult` and store it in variable `totalResult`.

@@ -5,5 +5,5 @@ type SourceConfig struct {
 }
 
 type Config struct {
-	Sources []SourceConfig `json:"sources,omitempty" validate:"required,min=1,dive"`
+	Sources []SourceConfig `json:"sources,omitempty" validate:"omitempty,min=1,dive"`
 }
